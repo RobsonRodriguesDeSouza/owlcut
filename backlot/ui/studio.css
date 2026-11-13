@@ -1,6 +1,9 @@
 /* ============================================================
    OWLCUT — design layer (loaded last on every page)
-   Palette: olive on bone (light) / olive on graphite (dark, default).
+   Palette: #0B132B night · #1C2541 ink · #3A506B slate · #5BC0DE cyan ·
+            #F4D6B0 sand · #D97706 amber.
+   Dark (default): night ground, ink cards, cyan actions, sand + amber for
+   "needs you". Light: sand ground, night text, ink actions.
    Type: Reddit Sans (UI) + JetBrains Mono (timecodes, metadata).
    board.css / create.css keep the components; this file owns the
    tokens, the type voice, the app bar and the interaction layer.
@@ -10,42 +13,46 @@
 
 :root {
   color-scheme: dark;
-  --bg: #10120e;
-  --surface: #171a14;
-  --surface-2: #1d2119;
-  --surface-3: #262b21;
-  --border: #30362a;
-  --border-soft: #232820;
-  --text: #ecebe7;
-  --text-2: #b4b9a7;
-  --text-3: #858b78;
-  --amber: #c5d28c;              /* accent (name kept: components use it) */
+  --night: #0B132B; --ink: #1C2541; --slate: #3A506B; --cyan: #5BC0DE; --sand: #F4D6B0; --amber-500: #D97706;
+
+  --bg: var(--night);
+  --surface: var(--ink);
+  --surface-2: #232E4D;
+  --surface-3: #2B3958;
+  --border: var(--slate);
+  --border-soft: #27334F;
+  --text: #F5F0E8;
+  --text-2: #C3CBD9;
+  --text-3: #8E9AB0;
+  --amber: var(--cyan);            /* accent (name kept: components use it) */
   --accent: var(--amber);
-  --accent-ink: #182005;
-  --amber-dim: color-mix(in srgb, var(--amber) 13%, transparent);
-  --green: #6fcf97;
+  --accent-ink: var(--night);
+  --amber-dim: color-mix(in srgb, var(--amber) 14%, transparent);
+  --warn: var(--amber-500);
+  --warn-dim: color-mix(in srgb, var(--warn) 16%, transparent);
+  --green: #6FD3A0;
   --green-dim: color-mix(in srgb, var(--green) 13%, transparent);
-  --red: #ef6f66;
+  --red: #F27166;
   --red-dim: color-mix(in srgb, var(--red) 13%, transparent);
-  --blue: #86b4ff;
-  --cream: #f3f1ea;
-  --cream-shade: #e3e0d6;
-  --cream-ink: #22261a;
-  --cream-ink-2: #5d6450;
-  --bg-vignette: radial-gradient(1100px 520px at 50% -160px, #1a1e15 0%, var(--bg) 70%);
-  --grain-opacity: .022;
-  --scroll-thumb: #2f3529;
-  --scroll-thumb-hover: #3d4535;
-  --clapper-a: #2b3024;
-  --clapper-b: #171a14;
+  --blue: var(--sand);             /* "waiting for you" text */
+  --cream: #F8EDDF;
+  --cream-shade: #ECD8BF;
+  --cream-ink: var(--night);
+  --cream-ink-2: var(--slate);
+  --bg-vignette: radial-gradient(1100px 520px at 50% -160px, #16204A 0%, var(--bg) 70%);
+  --grain-opacity: .02;
+  --scroll-thumb: var(--slate);
+  --scroll-thumb-hover: #4D6787;
+  --clapper-a: var(--slate);
+  --clapper-b: var(--ink);
   --script-shadow: 0 18px 50px -18px rgba(0,0,0,.8), 0 1px 0 rgba(255,255,255,.05) inset;
-  --modal-backdrop: rgba(6,7,5,.84);
+  --modal-backdrop: rgba(5,9,22,.84);
   --media-bg: #000;
-  --textcard-bg: #0e100c;
-  --badge-bg: rgba(10,12,8,.74);
-  --shadow-card: 0 1px 0 rgba(255,255,255,.03) inset, 0 18px 40px -30px rgba(0,0,0,.9);
-  --shadow-lift: 0 1px 0 rgba(255,255,255,.04) inset, 0 26px 50px -30px rgba(0,0,0,.95);
-  --ring: color-mix(in srgb, var(--amber) 70%, transparent);
+  --textcard-bg: #0E1733;
+  --badge-bg: rgba(11,19,43,.78);
+  --shadow-card: 0 1px 0 rgba(255,255,255,.04) inset, 0 18px 40px -30px rgba(0,0,0,.9);
+  --shadow-lift: 0 1px 0 rgba(255,255,255,.05) inset, 0 26px 50px -30px rgba(0,0,0,.95);
+  --ring: color-mix(in srgb, var(--amber) 75%, transparent);
   --appbar-bg: color-mix(in srgb, var(--bg) 82%, transparent);
 
   --sans: 'Reddit Sans', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
@@ -57,38 +64,39 @@
 
 :root[data-theme="light"] {
   color-scheme: light;
-  --bg: #ecebe7;
-  --surface: #f8f7f4;
-  --surface-2: #e6e4de;
-  --surface-3: #dad7cf;
-  --border: #cdcac1;
-  --border-soft: #dfdcd5;
-  --text: #1e2215;
-  --text-2: #4c5537;
-  --text-3: #686e5a;
-  --amber: #38450f;
-  --accent-ink: #ecebe7;
-  --amber-dim: color-mix(in srgb, var(--amber) 9%, transparent);
-  --green: #2c7149;
-  --red: #ad3a30;
-  --blue: #2d5c99;
-  --cream: #fbfaf7;
-  --cream-shade: #eeece6;
-  --cream-ink: #1e2215;
-  --cream-ink-2: #5d6450;
+  --bg: #F8F1E7;
+  --surface: #FFFCF7;
+  --surface-2: #F4E7D4;
+  --surface-3: #EAD6BD;
+  --border: #DCC6A8;
+  --border-soft: #EBDDC8;
+  --text: var(--night);
+  --text-2: var(--slate);
+  --text-3: #56677F;
+  --amber: var(--ink);             /* cyan is too light for text on sand */
+  --accent-ink: var(--sand);
+  --amber-dim: color-mix(in srgb, var(--ink) 9%, transparent);
+  --warn: #B45309;                 /* amber, one step darker for contrast on sand */
+  --green: #2C7149;
+  --red: #AD3A30;
+  --blue: #B45309;
+  --cream: #FFFCF7;
+  --cream-shade: #F4E7D4;
+  --cream-ink: var(--night);
+  --cream-ink-2: var(--slate);
   --bg-vignette: none;
   --grain-opacity: 0;
-  --scroll-thumb: #c8c5bb;
-  --scroll-thumb-hover: #a9a597;
-  --clapper-a: #38450f;
-  --clapper-b: #ecebe7;
-  --script-shadow: 0 24px 50px -36px rgba(40,44,28,.55), 0 1px 0 #fff inset;
-  --modal-backdrop: rgba(30,34,21,.45);
-  --media-bg: #15170f;
-  --textcard-bg: #22261a;
-  --badge-bg: rgba(30,34,21,.78);
-  --shadow-card: 0 1px 0 #fff inset, 0 14px 32px -26px rgba(40,44,28,.5);
-  --shadow-lift: 0 1px 0 #fff inset, 0 22px 44px -26px rgba(40,44,28,.6);
+  --scroll-thumb: #DCC6A8;
+  --scroll-thumb-hover: #C4A982;
+  --clapper-a: var(--ink);
+  --clapper-b: var(--sand);
+  --script-shadow: 0 24px 50px -36px rgba(28,37,65,.45), 0 1px 0 #fff inset;
+  --modal-backdrop: rgba(11,19,43,.45);
+  --media-bg: var(--night);
+  --textcard-bg: var(--ink);
+  --badge-bg: rgba(11,19,43,.8);
+  --shadow-card: 0 1px 0 #fff inset, 0 14px 32px -26px rgba(28,37,65,.45);
+  --shadow-lift: 0 1px 0 #fff inset, 0 22px 44px -26px rgba(28,37,65,.55);
   --appbar-bg: color-mix(in srgb, var(--bg) 86%, transparent);
 }
 
@@ -319,7 +327,12 @@ a { color: inherit; }
 .lbl-short { display: none; }
 @media (max-width: 560px) { .lbl-long { display: none; } .lbl-short { display: inline; } }
 .start-tile .go svg { width: 20px; height: 20px; display: block; }
-.lib-poster .lp-live .dot { background: #c5d28c; }
+.lib-poster .lp-live .dot { background: var(--warn); }
 .side-card { align-self: start; }
 /* the hidden attribute always wins over component display rules */
 [hidden] { display: none !important; }
+
+/* amber marks what needs the user's attention */
+.appbar-status.wait .dot, .status.waiting .dot, .lp-live .dot { background: var(--warn); }
+.appbar-status.wait .dot { box-shadow: 0 0 0 4px var(--warn-dim, transparent); }
+.chip.warn { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 45%, transparent); background: var(--warn-dim, transparent); }

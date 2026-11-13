@@ -56,7 +56,8 @@ STYLES: dict[str, list[dict[str, str]]] = {
     "accents": [
         {"id": "#ff2d55", "label": "Red"},
         {"id": "#ffd400", "label": "Yellow"},
-        {"id": "#c5d28c", "label": "Olive"},
+        {"id": "#5bc0de", "label": "Cyan"},
+        {"id": "#d97706", "label": "Amber"},
         {"id": "#3d8bff", "label": "Blue"},
         {"id": "#ffffff", "label": "White"},
     ],

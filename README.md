@@ -20,7 +20,7 @@ Pick the look before the agent starts. Every preview is rendered by the same eng
 
 ![Caption, intro and ending styles](docs/images/owlcut-styles.png)
 
-Captions: **Highlight**, **Karaoke**, **Clean**, **Impact**. Intros: **Hook**, **Rising letters**, **Title card**. Ending: **Call to action**. Five accent colours. All layouts keep clear of the TikTok/Reels/Shorts buttons.
+Captions: **Highlight**, **Karaoke**, **Clean**, **Impact**. Intros: **Hook**, **Rising letters**, **Title card**. Ending: **Call to action**. Six accent colours, including the OwlCut cyan and amber. All layouts keep clear of the TikTok/Reels/Shorts buttons.
 
 ## Quick start
 
