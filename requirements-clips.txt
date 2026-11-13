@@ -1,0 +1,9 @@
+# Extra dependencies for the OwlCut /clips workflow (YouTube -> social clips).
+# Install: uv pip install --python .venv/bin/python -r requirements-clips.txt
+yt-dlp>=2026.10.21              # video_downloader
+youtube-transcript-api>=1.2     # transcript_fetcher (YouTube captions, no download)
+faster-whisper>=1.2             # transcriber fallback when a video has no captions
+# face_tracker still uses the legacy mp.solutions API (removed in mediapipe 1.x)
+# and the OpenCV Haar fallback (CascadeClassifier was dropped in OpenCV 5).
+mediapipe==0.10.14
+opencv-python-headless>=4.10,<5

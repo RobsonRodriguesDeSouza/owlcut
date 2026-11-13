@@ -1,0 +1,104 @@
+/* ============================================================
+   OwlCut clip kit — caption + intro + outro looks for vertical clips.
+   Looks adapted from HyperFrames registry items (caption-highlight,
+   caption-pill-karaoke, caption-clip-wipe, caption-kinetic-slam,
+   blur-in, bottom-up-letters, lt-clean-bar) and re-laid for 9:16 with
+   social safe zones. All motion lives in the GSAP timeline (clip-kit.js).
+   ============================================================ */
+
+.ck-layer { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+.ck-layer * { box-sizing: border-box; }
+
+/* -------- caption groups (shared) -------- */
+.ck-group {
+  position: absolute; left: var(--ck-pad-l); right: var(--ck-pad-r);
+  top: var(--ck-cap-y); transform: translateY(-50%);
+  display: flex; flex-wrap: wrap; justify-content: center; align-items: center;
+  gap: 0.12em 0.22em; opacity: 0; visibility: hidden; text-align: center;
+}
+.ck-word { display: inline-block; position: relative; line-height: 1.02; white-space: nowrap; }
+
+/* highlight — caption-highlight */
+.ck-cap-highlight .ck-word {
+  font-family: "Montserrat", "Arial Black", sans-serif; font-weight: 800; text-transform: uppercase;
+  color: #fff; letter-spacing: .01em; padding: .06em .14em .1em;
+  text-shadow: 0 6px 18px rgba(0,0,0,.55), 0 0 2px rgba(0,0,0,.9);
+}
+.ck-cap-highlight .ck-bg {
+  position: absolute; inset: 0; z-index: -1; border-radius: .13em;
+  background: var(--ck-accent); box-shadow: 0 .14em .4em color-mix(in srgb, var(--ck-accent) 45%, transparent);
+  transform: scaleX(0); transform-origin: 0 50%; opacity: 0;
+}
+
+/* karaoke — caption-pill-karaoke */
+.ck-cap-karaoke .ck-group {
+  left: 50%; right: auto; width: max-content; max-width: calc(100% - var(--ck-pad-l) - var(--ck-pad-r));
+  transform: translate(-50%, -50%);
+  background: #f4f2ef; border-radius: .42em; padding: .32em .7em .38em;
+  box-shadow: 0 .18em .6em rgba(0,0,0,.28);
+}
+.ck-cap-karaoke .ck-word { font-family: "Poppins", Arial, sans-serif; font-weight: 700; color: #a3a3a3; }
+
+/* clean — caption-clip-wipe (calm, sentence case) */
+.ck-cap-clean .ck-word {
+  font-family: "Poppins", Arial, sans-serif; font-weight: 700; color: #fff;
+  clip-path: inset(0 100% 0 0);
+  text-shadow: 0 3px 14px rgba(0,0,0,.7), 0 0 2px rgba(0,0,0,.8);
+}
+
+/* impact — caption-kinetic-slam */
+.ck-cap-impact .ck-group { top: var(--ck-slam-y); }
+.ck-cap-impact .ck-word {
+  font-family: "Anton", Impact, sans-serif; font-weight: 400; text-transform: uppercase; color: #fff;
+  letter-spacing: .02em; line-height: .95;
+  text-shadow: 0 10px 30px rgba(0,0,0,.6), 0 0 3px rgba(0,0,0,.9);
+}
+.ck-cap-impact .ck-word.ck-key { color: var(--ck-accent); }
+
+/* -------- intros -------- */
+.ck-shade { position: absolute; inset: 0; opacity: 0;
+  background: linear-gradient(180deg, rgba(0,0,0,.72) 0%, rgba(0,0,0,.35) 45%, rgba(0,0,0,0) 70%); }
+
+/* hook — blur-in hook over a shaded top */
+.ck-hook {
+  position: absolute; left: var(--ck-pad-l); right: var(--ck-pad-r); top: var(--ck-hook-y);
+  transform: translateY(-50%); text-align: center;
+  font-family: "Montserrat", "Arial Black", sans-serif; font-weight: 800; color: #fff;
+  line-height: 1.08; letter-spacing: -.01em; text-shadow: 0 6px 24px rgba(0,0,0,.5);
+}
+.ck-hook span { display: inline-block; opacity: 0; }
+.ck-hook-rule { display: block; width: 2.4em; height: .14em; margin: .38em auto 0; border-radius: .07em;
+  background: var(--ck-accent); transform: scaleX(0); }
+
+/* letters — bottom-up letters */
+.ck-letters {
+  position: absolute; left: var(--ck-pad-l); right: var(--ck-pad-r); top: var(--ck-hook-y);
+  transform: translateY(-50%); text-align: center;
+  font-family: "Anton", Impact, sans-serif; text-transform: uppercase; color: #fff; line-height: 1;
+  text-shadow: 0 8px 26px rgba(0,0,0,.55);
+}
+.ck-letters .ck-lw { display: inline-block; white-space: nowrap; margin: 0 .12em; overflow: hidden; padding: .04em 0; }
+.ck-letters .ck-ch { display: inline-block; transform: translateY(110%); }
+.ck-letters .ck-lw.ck-key .ck-ch { color: var(--ck-accent); }
+
+/* title-card — lt-clean-bar card */
+.ck-card {
+  position: absolute; left: var(--ck-pad-l); top: var(--ck-card-y); max-width: calc(100% - var(--ck-pad-l) - var(--ck-pad-r));
+  display: flex; align-items: stretch; border-radius: calc(22px * var(--ck-u, 1)); overflow: hidden;
+  box-shadow: 0 18px 50px rgba(0,0,0,.35); clip-path: inset(0 100% 0 0);
+  font-family: "Montserrat", Arial, sans-serif;
+}
+.ck-card-tab { width: calc(16px * var(--ck-u, 1)); background: var(--ck-accent); transform: scaleY(0); transform-origin: 50% 0; }
+.ck-card-body { background: #fff; padding: calc(26px * var(--ck-u, 1)) calc(40px * var(--ck-u, 1)) calc(30px * var(--ck-u, 1)) calc(30px * var(--ck-u, 1)); }
+.ck-card-title { display: block; font-weight: 800; color: #0f1115; letter-spacing: -.015em; line-height: 1.12; }
+.ck-card-sub { display: block; margin-top: calc(10px * var(--ck-u, 1)); font-weight: 500; color: #4a4f57; }
+.ck-card-title, .ck-card-sub { opacity: 0; transform: translateY(14px); }
+
+/* -------- outro -------- */
+.ck-cta {
+  position: absolute; left: 50%; top: var(--ck-cta-y); transform: translate(-50%, -50%) scale(.9);
+  display: inline-flex; align-items: center; gap: .5em; white-space: nowrap; opacity: 0;
+  padding: .42em .9em .48em; border-radius: 999px; background: var(--ck-accent); color: var(--ck-accent-ink);
+  font-family: "Montserrat", Arial, sans-serif; font-weight: 800; box-shadow: 0 .3em .9em rgba(0,0,0,.35);
+}
+.ck-cta svg { width: 1em; height: 1em; }

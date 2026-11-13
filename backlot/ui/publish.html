@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OwlCut — Publish</title>
+<meta name="description" content="Captions, hashtags and files for every clip, per social network.">
+<script>(function(){var q=new URLSearchParams(location.search).get("theme"),t="dark";try{t=q||localStorage.getItem("backlot.theme")||"dark"}catch(e){t=q||"dark"}document.documentElement.dataset.theme=t==="light"?"light":"dark"})()</script>
+<link rel="stylesheet" href="/ui/board.css">
+<link rel="stylesheet" href="/ui/create.css">
+<link rel="stylesheet" href="/ui/studio.css">
+<link rel="stylesheet" href="/ui/clips.css">
+<link rel="stylesheet" href="/ui/publish.css">
+<script type="module" src="/ui/shell.js"></script>
+</head>
+<body>
+<main class="wrap" id="conteudo">
+  <header class="slate">
+    <div class="slate-main">
+      <h1 id="title">Publish</h1>
+      <p class="page-sub" id="sub">Text, hashtags and files for every clip, organised by network.</p>
+      <div class="meta-row" id="meta"></div>
+    </div>
+    <div class="slate-actions" id="actions"></div>
+  </header>
+
+  <!-- list mode -->
+  <section id="listMode" hidden>
+    <div class="lib-grid" id="kits"></div>
+    <div class="empty-state" id="listEmpty" hidden>
+      <b>No finished clips yet</b>
+      When a clips production renders its videos, the publishing kit shows up here.
+      <div style="margin-top:16px"><a class="btn primary" href="/clips">Make clips from a video</a></div>
+    </div>
+  </section>
+
+  <!-- kit mode -->
+  <section id="kitMode" hidden>
+    <div class="pub-bar">
+      <div class="seg compact pub-tabs" id="tabs" role="radiogroup" aria-label="Social network"></div>
+      <div class="pub-progress"><span id="progText"></span><i><b id="progBar"></b></i></div>
+    </div>
+    <div class="pub-note" id="draftNote" hidden>The agent hasn't written the text for this network yet. Write it here, or ask for it on the review page.</div>
+    <div class="pub-list" id="pubList"></div>
+  </section>
+</main>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<script type="module" src="/ui/publish.js"></script>
+</body>
+</html>

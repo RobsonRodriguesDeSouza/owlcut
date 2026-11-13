@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OwlCut — Review clips</title>
+<meta name="description" content="Review, trim and approve the clips the agent suggests.">
+<script>(function(){var q=new URLSearchParams(location.search).get("theme"),t="dark";try{t=q||localStorage.getItem("backlot.theme")||"dark"}catch(e){t=q||"dark"}document.documentElement.dataset.theme=t==="light"?"light":"dark"})()</script>
+<link rel="stylesheet" href="/ui/board.css">
+<link rel="stylesheet" href="/ui/create.css">
+<link rel="stylesheet" href="/ui/studio.css">
+<link rel="stylesheet" href="/ui/clips.css">
+<script type="module" src="/ui/shell.js"></script>
+</head>
+<body>
+<main class="wrap" id="conteudo">
+  <header class="slate">
+    <div class="slate-main">
+      <h1 id="title">Loading…</h1>
+      <div class="meta-row" id="meta"></div>
+    </div>
+    <div class="slate-actions">
+      <a class="btn small" id="activityLink" href="#">Agent activity</a>
+      <a class="btn small" id="sourceLink" href="#" target="_blank" rel="noopener" hidden>Open on YouTube</a>
+    </div>
+  </header>
+
+  <section class="msg-card agent-msg" id="agentCard" hidden aria-live="polite">
+    <div class="msg-head"><h2>Message from the agent</h2><span id="agentStatus"></span></div>
+    <div class="md" id="agentMsg"></div>
+  </section>
+
+  <section class="progress-card" id="progress" hidden>
+    <div class="thinking"><span class="spinner"></span><span id="progressText">The agent is downloading and transcribing the video…</span></div>
+    <ol class="progress-stages" id="progressStages"></ol>
+  </section>
+
+  <div class="review" id="review" hidden>
+    <div class="review-player">
+      <div class="player-card">
+        <video id="video" controls preload="metadata" playsinline></video>
+        <div class="player-empty" id="playerEmpty" hidden>The source video appears here once the download finishes.</div>
+        <div class="timeline" id="timeline" aria-label="Clips on the video timeline"><span class="playhead" id="playhead"></span></div>
+        <div class="player-foot">
+          <span id="nowPlaying">Click a clip to play just that segment.</span>
+          <span class="mono" id="clock"></span>
+        </div>
+      </div>
+    </div>
+
+    <div class="review-list">
+      <div class="list-head">
+        <h2>Suggested clips</h2>
+        <div class="list-filter seg compact" role="radiogroup" aria-label="Filter clips">
+          <label><input type="radio" name="filter" value="all" checked>All</label>
+          <label><input type="radio" name="filter" value="selected">Selected</label>
+          <label><input type="radio" name="filter" value="rejected">Rejected</label>
+        </div>
+      </div>
+      <div class="clip-list" id="clipList"></div>
+    </div>
+  </div>
+
+  <section class="renders" id="renders" hidden>
+    <div class="lib-section-head"><h2>Finished clips</h2><span class="count" id="renderCount"></span>
+      <a class="btn small primary" id="publishLink" href="#" style="margin-left:auto">Open publishing kit</a></div>
+    <div class="render-grid" id="renderGrid"></div>
+  </section>
+</main>
+
+<div class="action-bar" id="actionBar" hidden>
+  <div class="action-in">
+    <div class="action-sum"><b id="selCount">0 clips</b><span id="selTotal"></span></div>
+    <div class="action-note" id="actionNote"></div>
+    <details class="action-more" id="moreBox">
+      <summary class="btn">Ask for something else</summary>
+      <div class="more-pop">
+        <label for="moreText">Message to the agent</label>
+        <textarea id="moreText" placeholder="E.g. look for shorter, funnier clips; clip 3 should start before the question…"></textarea>
+        <button class="btn" type="button" id="sendMore">Send</button>
+      </div>
+    </details>
+    <button class="btn primary" type="button" id="approveBtn">Approve</button>
+  </div>
+</div>
+<script type="module" src="/ui/clips-review.js"></script>
+</body>
+</html>

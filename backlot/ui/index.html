@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OwlCut — Library</title>
+<meta name="description" content="Your videos and clips made with OwlCut.">
+<script>(function(){var q=new URLSearchParams(location.search).get("theme"),t="dark";try{t=q||localStorage.getItem("backlot.theme")||"dark"}catch(e){t=q||"dark"}document.documentElement.dataset.theme=t==="light"?"light":"dark"})()</script>
+<link rel="stylesheet" href="/ui/board.css">
+<link rel="stylesheet" href="/ui/create.css">
+<link rel="stylesheet" href="/ui/studio.css">
+<script type="module" src="/ui/shell.js"></script>
+</head>
+<body>
+<main class="wrap" id="conteudo">
+  <header class="slate">
+    <div>
+      <h1>Library</h1>
+      <p class="page-sub">Make a video from scratch, or turn a YouTube video into clips for social media.</p>
+    </div>
+  </header>
+
+  <div class="start-row" id="startRow"></div>
+  <div class="jobs-strip" id="jobs" aria-label="Recent productions"></div>
+
+  <div class="lib-section-head">
+    <h2>Projects</h2>
+    <span class="count" id="count"></span>
+  </div>
+  <div class="lib-grid" id="grid"></div>
+  <div class="empty-state" id="empty" style="display:none">
+    <b>No projects yet</b>
+    Start with a new video or with clips from a YouTube video.
+  </div>
+</main>
+<script type="module" src="/ui/library.js"></script>
+</body>
+</html>

@@ -1,0 +1,4 @@
+.build/
+renders/
+node_modules/
+.hyperframes/

@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OwlCut — Clips</title>
+<meta name="description" content="Turn a YouTube video into captioned vertical clips for social media.">
+<script>(function(){var q=new URLSearchParams(location.search).get("theme"),t="dark";try{t=q||localStorage.getItem("backlot.theme")||"dark"}catch(e){t=q||"dark"}document.documentElement.dataset.theme=t==="light"?"light":"dark"})()</script>
+<link rel="stylesheet" href="/ui/board.css">
+<link rel="stylesheet" href="/ui/create.css">
+<link rel="stylesheet" href="/ui/studio.css">
+<link rel="stylesheet" href="/ui/clips.css">
+<script type="module" src="/ui/shell.js"></script>
+</head>
+<body>
+<main class="wrap" id="conteudo">
+  <header class="slate">
+    <div>
+      <h1>Clips from a YouTube video</h1>
+      <p class="page-sub">Paste the link. The agent downloads, transcribes and finds the moments that stand on their own; you review and trim them before rendering.</p>
+    </div>
+  </header>
+
+  <div id="claudeMissing" class="banner" style="display:none">
+    Claude Code CLI was not found on this machine. Set <code>OPENMONTAGE_CLAUDE_BIN</code> to the binary path and restart OwlCut.
+  </div>
+
+  <div class="create-grid">
+    <form class="form-card" id="form" novalidate>
+      <section class="form-section">
+        <h2><span class="step">1</span>The video</h2>
+        <div class="url-row">
+          <label class="sr-only" for="url">YouTube link</label>
+          <div class="url-input">
+            <span class="url-ic" id="urlIcon" aria-hidden="true"></span>
+            <input id="url" name="url" type="url" inputmode="url" autocomplete="off" required
+              placeholder="https://www.youtube.com/watch?v=…">
+          </div>
+          <button class="btn" type="button" id="probeBtn">Read video</button>
+        </div>
+        <div class="help">Tip: on YouTube, right-click the video and choose <b>“Copy video URL at current time”</b> — the first clip starts there.</div>
+        <div class="form-error" id="probeError" role="alert"></div>
+
+        <div class="probe" id="probe" hidden>
+          <div class="probe-thumb"><img id="pThumb" alt=""><span class="probe-dur" id="pDur"></span></div>
+          <div class="probe-body">
+            <b id="pTitle"></b>
+            <span class="probe-ch" id="pChannel"></span>
+            <div class="probe-tags" id="pTags"></div>
+          </div>
+        </div>
+
+        <div class="fields focus-fields" id="focusFields" hidden>
+          <div class="field">
+            <label for="focus_start">Range of interest — start</label>
+            <input id="focus_start" name="focus_start" type="text" inputmode="numeric" placeholder="e.g. 12:30">
+          </div>
+          <div class="field">
+            <label for="focus_end">End</label>
+            <input id="focus_end" name="focus_end" type="text" inputmode="numeric" placeholder="optional">
+          </div>
+          <div class="field full" id="chaptersField" hidden>
+            <span class="label">Video chapters — click one to use it as the range</span>
+            <div class="chapters" id="chapters"></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="form-section">
+        <h2><span class="step">2</span>The clips</h2>
+        <div class="fields">
+          <fieldset class="field full">
+            <legend>How many clips</legend>
+            <div class="seg" id="countSeg"></div>
+          </fieldset>
+          <fieldset class="field full">
+            <legend>Length of each clip</legend>
+            <div class="seg" id="lengthSeg"></div>
+          </fieldset>
+          <fieldset class="field full">
+            <legend>Where you'll post</legend>
+            <div class="seg" id="platformSeg"></div>
+            <div class="help">TikTok, Reels and Shorts share the same 9:16 vertical; feed posts come out in 4:5.</div>
+          </fieldset>
+        </div>
+      </section>
+
+      <section class="form-section">
+        <h2><span class="step">3</span>Look</h2>
+        <p class="section-help">Previews rendered by the same engine that builds your clips.</p>
+        <div class="fields">
+          <fieldset class="field full">
+            <legend>Captions</legend>
+            <div class="style-grid" id="captionGrid"></div>
+          </fieldset>
+          <fieldset class="field full">
+            <legend>Intro</legend>
+            <div class="style-grid" id="introGrid"></div>
+          </fieldset>
+          <fieldset class="field">
+            <legend>Ending</legend>
+            <div class="seg" id="outroSeg"></div>
+          </fieldset>
+          <div class="field" id="ctaField" hidden>
+            <label for="cta_text">Call-to-action text</label>
+            <input id="cta_text" name="cta_text" type="text" maxlength="40" value="Follow for part 2">
+          </div>
+          <fieldset class="field full">
+            <legend>Accent colour</legend>
+            <div class="swatches" id="accentSeg"></div>
+          </fieldset>
+        </div>
+      </section>
+
+      <section class="form-section">
+        <h2><span class="step">4</span>Control</h2>
+        <div class="fields">
+          <div class="field">
+            <label for="language">Caption language</label>
+            <select id="language" name="language"></select>
+          </div>
+          <div class="field">
+            <label for="approvals">Review</label>
+            <select id="approvals" name="approvals"></select>
+          </div>
+          <div class="field full">
+            <label for="notes">Notes</label>
+            <textarea id="notes" name="notes" placeholder="Optional — what the clips should be about, what to avoid, lines that must be included…"></textarea>
+          </div>
+        </div>
+      </section>
+
+      <div class="form-actions">
+        <button class="btn primary" type="submit" id="submit">Find the best clips</button>
+        <span class="form-error" id="error" role="alert"></span>
+      </div>
+    </form>
+
+    <aside class="side-card">
+      <h3>How it works</h3>
+      <ol class="steps-list">
+        <li><b>Downloads and transcribes</b> the video, timing every word.</li>
+        <li><b>Ranks the moments</b> by hook, standalone sense, value and energy.</li>
+        <li><b>You review</b>: watch each moment, trim start and end, pick which ones go in.</li>
+        <li><b>Renders</b> vertical clips that follow the face, with word-by-word captions.</li>
+      </ol>
+      <h3 style="margin-top:22px">Summary</h3>
+      <div class="summary-list" id="summary"></div>
+      <p class="rights">Use your own videos, or ones you have permission to use. Reposting other people's content can break copyright law and platform rules.</p>
+    </aside>
+  </div>
+</main>
+<script type="module" src="/ui/clips.js"></script>
+</body>
+</html>

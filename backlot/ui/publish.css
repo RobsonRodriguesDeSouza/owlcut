@@ -1,0 +1,49 @@
+/* ============================================================
+   OWLCUT — /publish (publishing kit). Uses studio.css tokens.
+   ============================================================ */
+
+.pub-bar {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;
+  margin-top: 24px; position: sticky; top: 60px; z-index: 20; padding: 10px 0;
+  background: color-mix(in srgb, var(--bg) 92%, transparent); backdrop-filter: blur(10px);
+}
+.pub-tabs label { min-height: 40px; padding: 0 16px; font-size: calc(13.5px * var(--fs-scale)); }
+.pub-progress { display: flex; align-items: center; gap: 12px; color: var(--text-2); font-size: calc(13px * var(--fs-scale)); }
+.pub-progress i { width: 160px; height: 6px; border-radius: 3px; background: var(--surface-3); overflow: hidden; }
+.pub-progress b { display: block; height: 100%; width: 0; background: var(--green); border-radius: 3px; transition: width .4s var(--ease); }
+.pub-note { margin-top: 12px; padding: 12px 16px; border-radius: 12px; background: var(--amber-dim); color: var(--text-2); font-size: calc(13px * var(--fs-scale)); }
+
+.pub-list { display: flex; flex-direction: column; gap: 16px; margin-top: 16px; }
+.pub-row {
+  display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 22px; padding: 18px;
+  background: var(--surface); border: 1px solid var(--border-soft); border-radius: var(--r-lg); box-shadow: var(--shadow-card);
+  transition: border-color .15s, opacity .15s;
+}
+.pub-row:hover { border-color: var(--border); }
+.pub-row.done { border-color: color-mix(in srgb, var(--green) 45%, transparent); }
+.pub-media .render-frame { border-radius: 12px; overflow: hidden; }
+.pub-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.pub-head h3 { font-size: calc(16px * var(--fs-scale)); font-weight: 600; letter-spacing: -0.01em; margin-right: auto; }
+.pub-fields { display: grid; gap: 14px; margin-top: 14px; }
+.pub-fields label { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+.pub-fields textarea { min-height: 120px; }
+.count { font-family: var(--mono); font-weight: 400; font-size: calc(11.5px * var(--fs-scale)); color: var(--text-3); }
+.count.near { color: var(--amber); }
+.count.over { color: var(--red); font-weight: 600; }
+.pub-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 14px; }
+.pub-actions .posted { margin-left: auto; padding: 0 12px; min-height: 40px; border-radius: 10px; border: 1px solid var(--border); }
+.pub-row.done .posted { color: var(--green); border-color: color-mix(in srgb, var(--green) 50%, transparent); background: var(--green-dim); }
+.pub-row.done .posted input { accent-color: var(--green); }
+@media (max-width: 760px) {
+  .pub-row { grid-template-columns: 1fr; }
+  .pub-media { max-width: 240px; }
+  .pub-actions .posted { margin-left: 0; }
+  .pub-progress i { width: 100px; }
+}
+
+.toast {
+  position: fixed; left: 50%; bottom: 28px; transform: translate(-50%, 20px); z-index: 120;
+  background: var(--text); color: var(--bg); padding: 10px 18px; border-radius: 999px; font-weight: 600;
+  font-size: calc(13px * var(--fs-scale)); opacity: 0; pointer-events: none; transition: opacity .2s, transform .2s var(--ease);
+}
+.toast.on { opacity: 1; transform: translate(-50%, 0); }

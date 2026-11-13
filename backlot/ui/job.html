@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OwlCut — Production</title>
+<script>(function(){var q=new URLSearchParams(location.search).get("theme"),t="dark";try{t=q||localStorage.getItem("backlot.theme")||"dark"}catch(e){t=q||"dark"}document.documentElement.dataset.theme=t==="light"?"light":"dark"})()</script>
+<link rel="stylesheet" href="/ui/board.css">
+<link rel="stylesheet" href="/ui/create.css">
+<link rel="stylesheet" href="/ui/studio.css">
+<script type="module" src="/ui/shell.js"></script>
+</head>
+<body>
+<div class="wrap">
+  <header class="slate">
+    <div>
+      <h1 id="title">…</h1>
+      <div class="meta-row" id="meta"></div>
+    </div>
+    <div class="spacer"></div>
+    <a class="btn small" id="boardLink" href="#" style="display:none">View storyboard ↗</a>
+  </header>
+
+  <div class="job-grid with-rail">
+    <nav class="vrail-card" aria-label="Production stages">
+      <div class="vrail-head">
+        <h3>Stages</h3>
+        <span class="vrail-count" id="railCount"></span>
+      </div>
+      <div class="vrail-progress"><span id="railBar"></span></div>
+      <ol class="vrail" id="rail"></ol>
+    </nav>
+    <main>
+      <section class="msg-card" id="msgCard">
+        <div class="msg-head"><h2 id="msgTitle">Agente</h2></div>
+        <div id="msgBody"></div>
+        <div class="reply" id="reply" style="display:none">
+          <textarea id="replyText" placeholder="Write a comment or a change request (optional when approving)…"></textarea>
+          <div class="reply-actions">
+            <button class="btn ok" id="approveBtn" type="button">✓ Approve and continue</button>
+            <button class="btn" id="changesBtn" type="button">✎ Request changes</button>
+            <span class="form-error" id="replyError" role="alert"></span>
+          </div>
+        </div>
+        <div class="reply-actions" id="runningActions" style="display:none">
+          <button class="btn danger small" id="cancelBtn" type="button">■ Pause agent</button>
+        </div>
+      </section>
+      <section class="video-card" id="videoCard" style="display:none">
+        <video id="video" controls preload="metadata"></video>
+        <div class="vc-foot">
+          <select id="renderSelect" aria-label="Escolher render"></select>
+          <a class="btn small" id="downloadLink" href="#" download>⤓ Download</a>
+        </div>
+      </section>
+    </main>
+    <aside class="activity">
+      <h3>Activity</h3>
+      <div class="act-list" id="activity"></div>
+    </aside>
+  </div>
+</div>
+<script type="module" src="/ui/job.js"></script>
+</body>
+</html>

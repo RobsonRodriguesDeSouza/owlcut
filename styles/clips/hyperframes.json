@@ -1,0 +1,55 @@
+{
+  "$schema": "https://hyperframes.heygen.com/schema/hyperframes.json",
+  "registry": "https://raw.githubusercontent.com/heygen-com/hyperframes/main/registry",
+  "paths": {
+    "blocks": "compositions",
+    "components": "compositions/components",
+    "assets": "assets"
+  },
+  "media": {
+    "autoProxy": true
+  },
+  "authoringSkill": "hyperframes",
+  "registryItems": [
+    {
+      "name": "caption-highlight",
+      "type": "hyperframes:component",
+      "target": "compositions/components/caption-highlight.html"
+    },
+    {
+      "name": "caption-pill-karaoke",
+      "type": "hyperframes:component",
+      "target": "compositions/components/caption-pill-karaoke.html"
+    },
+    {
+      "name": "caption-clip-wipe",
+      "type": "hyperframes:component",
+      "target": "compositions/components/caption-clip-wipe.html"
+    },
+    {
+      "name": "caption-kinetic-slam",
+      "type": "hyperframes:component",
+      "target": "compositions/components/caption-kinetic-slam.html"
+    },
+    {
+      "name": "caption-editorial-emphasis",
+      "type": "hyperframes:component",
+      "target": "compositions/components/caption-editorial-emphasis.html"
+    },
+    {
+      "name": "blur-in",
+      "type": "hyperframes:component",
+      "target": "compositions/components/blur-in.html"
+    },
+    {
+      "name": "bottom-up-letters",
+      "type": "hyperframes:component",
+      "target": "compositions/components/bottom-up-letters.html"
+    },
+    {
+      "name": "lt-clean-bar",
+      "type": "hyperframes:block",
+      "target": "compositions/lt-clean-bar.html"
+    }
+  ]
+}
