@@ -20,6 +20,7 @@ let selectedStage = null;   // stage drawer open for this stage name
 let activeRender = 0;
 let replay = null;          // {t0, t1, t, playing} — replay mode when non-null
 let firstPaint = true;
+let projectJob = null;      // the browser-started production behind this project, if any
 
 function applyTheme(theme) {
   currentTheme = theme === "light" ? "light" : "dark";
@@ -97,6 +98,7 @@ function renderSlate(s) {
     ),
     ...chips,
     el("div", { class: "spacer" }),
+    renderJobLink(),
     liveEl,
     cost,
   );
@@ -1049,6 +1051,30 @@ function tickReplay() {
 // ---------------------------------------------------------------------------
 // page assembly
 // ---------------------------------------------------------------------------
+
+// Link from the (read-only) board to the production page where the user can
+// approve, request changes or resume a stopped run.
+function renderJobLink() {
+  if (!projectJob) return null;
+  const j = projectJob;
+  const href = j.kind === "clips" ? `/clips/${encodeURIComponent(j.id)}` : `/job/${encodeURIComponent(j.id)}`;
+  const needsYou = ["waiting", "error", "interrupted", "cancelled"].includes(j.status);
+  const label = j.status === "waiting" ? "Review and approve"
+    : needsYou ? "Continue production" : "Open production";
+  return el("a", { class: `btn small${needsYou ? " primary" : ""}`, href }, label);
+}
+
+async function loadProjectJob() {
+  try {
+    const jobs = await getJSON("/api/jobs");
+    const next = jobs.find((j) => j.project_id === projectId) || null;
+    const changed = JSON.stringify(next) !== JSON.stringify(projectJob);
+    projectJob = next;
+    if (changed) render();
+  } catch { /* jobs API unavailable: the board still works without the link */ }
+}
+loadProjectJob();
+setInterval(loadProjectJob, 10000);
 
 function render() {
   if (!state) return;

@@ -85,7 +85,11 @@ async function refreshStatus() {
     const res = await fetch("/api/jobs");
     if (!res.ok) return;
     const jobs = await res.json();
-    const waiting = jobs.filter((j) => j.status === "waiting");
+    // "Needs you": waiting for approval, plus recent productions that stopped
+    // (error / interrupted / paused) and only move again when the user replies.
+    const weekAgo = Date.now() / 1000 - 7 * 86400;
+    const stopped = jobs.filter((j) => ["error", "interrupted", "cancelled"].includes(j.status) && (j.updated_at || 0) > weekAgo);
+    const waiting = [...jobs.filter((j) => j.status === "waiting"), ...stopped];
     const running = jobs.filter((j) => j.status === "running");
     const lbl = el.querySelector(".lbl");
     const jobHref = (j) => (j.kind === "clips" ? `/clips/${j.id}` : `/job/${j.id}`);
