@@ -76,7 +76,7 @@ function stageSub(st, cls) {
   }
   if (cls === "done" && st.timestamp) {
     const t = new Date(st.timestamp).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
-    return `✓ ${t}${st.gated && st.human_approved ? " · aprovado" : ""}`;
+    return `✓ ${t}${st.gated && st.human_approved ? " · approved" : ""}`;
   }
   return "";
 }
@@ -110,7 +110,7 @@ function renderRail() {
   }
   prevStageStatus = Object.fromEntries(stages.map((s) => [s.name, s.status]));
   const done = stages.filter((s) => s.status === "completed").length;
-  $("railCount").textContent = `${done} de ${stages.length}`;
+  $("railCount").textContent = `${done} of ${stages.length}`;
   $("railBar").style.width = stages.length ? `${(done / stages.length) * 100}%` : "0";
 }
 
@@ -245,7 +245,7 @@ $("approveBtn").addEventListener("click", () => {
   if (job.status === "waiting") {
     send(extra ? `Approved. Note: ${extra}` : "Approved. Go ahead to the next stage.");
   } else {
-    send(extra || "Continue de onde parou.");
+    send(extra || "Continue from where you stopped.");
   }
 });
 
