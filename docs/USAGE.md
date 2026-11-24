@@ -7,11 +7,12 @@ This guide covers installing OwlCut, each screen of its web app, the clip style 
 - [3. Make clips from a YouTube video](#3-make-clips-from-a-youtube-video)
 - [4. Review and trim the clips](#4-review-and-trim-the-clips)
 - [5. Publish](#5-publish)
-- [6. Make a video from a topic](#6-make-a-video-from-a-topic)
-- [7. The clip style kit](#7-the-clip-style-kit)
-- [8. Configuration](#8-configuration)
-- [9. Troubleshooting](#9-troubleshooting)
-- [10. For developers](#10-for-developers)
+- [6. Make a ranking video](#6-make-a-ranking-video)
+- [7. Make a video from a topic](#7-make-a-video-from-a-topic)
+- [8. The clip style kit](#8-the-clip-style-kit)
+- [9. Configuration](#9-configuration)
+- [10. Troubleshooting](#10-troubleshooting)
+- [11. For developers](#11-for-developers)
 
 ---
 
@@ -153,13 +154,25 @@ Open **Publish** in the app bar, or **Open publishing kit** on the review page (
 
 Posting itself is manual for now. OwlCut doesn't hold any social network credentials.
 
-## 6. Make a video from a topic
+## 6. Make a ranking video
+
+**Ranking** (`/ranking`) joins several YouTube moments into one vertical video (1080×1920). A title stays fixed at the top for the whole video, and each moment gets a big **#N** badge with its name. It runs entirely on your machine with yt-dlp and ffmpeg, so it uses no Claude usage.
+
+1. Open **Ranking**, type the header title (for example "Top 6 goals of the week") and click **Create ranking**.
+2. For each slot, paste a YouTube link and click **Load**. Slot 1 is **#1**. Use ▲ ▼ to reorder slots. You can add up to 10.
+3. Click **Open player**, play the video, and use **Mark now** to set the start and the end. You can also type the times (`1:02.5`). **▶ Play the cut** plays just that part. Each cut can be 1 to 90 seconds long.
+4. Type the **name** shown under the number. Choose the **order**: countdown (#6 → #1) or top first. Pick an accent colour.
+5. Click **Render video**. OwlCut downloads only the parts you marked, lays them out and joins them. Watch the result on the page or click **Download MP4**.
+
+Everything autosaves. Rankings live in `.backlot/rankings/<id>/`.
+
+## 7. Make a video from a topic
 
 **New video** (`/new`) starts any OpenMontage pipeline from a form: topic, video type, length, format, language, narration voice (free Edge TTS voices or offline Piper), background music (an original track composed locally, your own file from `music_library/`, or none), tone, captions, render engine and approval mode.
 
 The production page (`/job/<id>`) shows the stages, the agent's latest message, **Approve and continue** / **Request changes**, the activity log and the rendered video. **View storyboard** opens OpenMontage's live board for the project.
 
-## 7. The clip style kit
+## 8. The clip style kit
 
 The looks live in `styles/clips/` and are built with HyperFrames (HTML + GSAP, rendered frame by frame, so every render is identical).
 
@@ -176,7 +189,7 @@ The looks live in `styles/clips/` and are built with HyperFrames (HTML + GSAP, r
 
 Layout rules for 9:16: captions sit at about 66 % of the height, with a wider right margin, so they never sit under the like/comment/share buttons or the caption area at the bottom.
 
-## 8. Configuration
+## 9. Configuration
 
 | Variable | Default | Purpose |
 |---|---|---|
@@ -193,7 +206,7 @@ Where things are stored:
 | `projects/<id>/clips/publish_edits.json` | Your publishing edits and posted marks. |
 | `.backlot/jobs/<id>/` | Agent session state and activity log. Git-ignored. |
 
-## 9. Troubleshooting
+## 10. Troubleshooting
 
 | Symptom | Fix |
 |---|---|
@@ -206,7 +219,7 @@ Where things are stored:
 | yt-dlp warns that Python 3.10 is deprecated | It still works; recreate the venv with Python 3.11+ when convenient. |
 | The style previews look outdated after editing the kit | `.venv/bin/python -m styles.clips.build previews` |
 
-## 10. For developers
+## 11. For developers
 
 ### Tests
 

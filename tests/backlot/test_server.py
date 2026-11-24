@@ -16,6 +16,7 @@ import pytest
 from fastapi.testclient import TestClient
 from PIL import Image
 
+from backlot import jobs as jobs_mod
 from backlot import server as server_mod
 from backlot import state as state_mod
 
@@ -29,6 +30,9 @@ def projects_root(tmp_path, monkeypatch):
     monkeypatch.setattr(server_mod, "_summary_cache", {})
     monkeypatch.setattr(server_mod, "_PROJECTS_ROOT_STR", __import__("os").path.normcase(str(root.resolve())))
     monkeypatch.setattr(server_mod, "THUMB_CACHE_DIR", tmp_path / "thumbs")
+    # create_app() builds a JobManager, whose recovery pass rewrites job files:
+    # never let a test touch the real .backlot/jobs (it would flag live jobs as interrupted).
+    monkeypatch.setattr(jobs_mod, "JOBS_DIR", tmp_path / "jobs")
     return root
 
 

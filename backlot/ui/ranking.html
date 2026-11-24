@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OwlCut — Ranking</title>
+<meta name="description" content="Pick YouTube moments, trim them and render one vertical ranking video.">
+<script>(function(){var q=new URLSearchParams(location.search).get("theme"),t="dark";try{t=q||localStorage.getItem("backlot.theme")||"dark"}catch(e){t=q||"dark"}document.documentElement.dataset.theme=t==="light"?"light":"dark"})()</script>
+<link rel="stylesheet" href="/ui/board.css">
+<link rel="stylesheet" href="/ui/create.css">
+<link rel="stylesheet" href="/ui/studio.css">
+<link rel="stylesheet" href="/ui/clips.css">
+<link rel="stylesheet" href="/ui/ranking.css">
+<script type="module" src="/ui/shell.js"></script>
+</head>
+<body>
+<main class="wrap" id="conteudo">
+
+  <!-- List view (/ranking) -->
+  <section id="listView" hidden>
+    <header class="slate">
+      <div class="slate-main">
+        <h1>Ranking videos</h1>
+        <p class="page-sub">Pick up to 10 YouTube moments, trim each one and render a single 9:16 video with a fixed header and #N badges. Runs on this machine, so it uses no Claude usage.</p>
+      </div>
+    </header>
+    <form class="rk-new form-card" id="newForm">
+      <div class="field">
+        <label for="newTitle">Header title</label>
+        <input id="newTitle" type="text" maxlength="70" placeholder="e.g. Top 6 goals of the week" required>
+      </div>
+      <button class="btn primary" type="submit">Create ranking</button>
+      <span class="form-error" id="newError" role="alert"></span>
+    </form>
+    <h2 class="rk-h2">Your rankings</h2>
+    <div class="rk-list" id="list"></div>
+  </section>
+
+  <!-- Editor view (/ranking/<id>) -->
+  <section id="editView" hidden>
+    <header class="slate">
+      <div class="slate-main">
+        <a class="rk-back" href="/ranking">← All rankings</a>
+        <h1 id="eTitle">Ranking</h1>
+        <p class="page-sub">Slot 1 is <b>#1</b>. Load each video, play it and mark where the cut starts and ends.</p>
+      </div>
+      <div class="slate-actions">
+        <span class="rk-saved" id="saved" aria-live="polite"></span>
+      </div>
+    </header>
+
+    <div class="create-grid">
+      <div class="form-card">
+        <section class="form-section">
+          <h2><span class="step">1</span>Header</h2>
+          <div class="fields">
+            <div class="field full">
+              <label for="title">Title shown at the top of the whole video</label>
+              <input id="title" type="text" maxlength="70" placeholder="e.g. Top 6 goals of the week">
+            </div>
+            <fieldset class="field">
+              <legend>Order</legend>
+              <div class="seg" id="orderSeg"></div>
+            </fieldset>
+            <fieldset class="field">
+              <legend>Accent colour</legend>
+              <div class="swatches" id="accentSeg"></div>
+            </fieldset>
+          </div>
+        </section>
+
+        <section class="form-section">
+          <h2><span class="step">2</span>Videos and cuts</h2>
+          <ol class="rk-slots" id="slots"></ol>
+          <button class="btn small" type="button" id="addSlot">+ Add slot</button>
+        </section>
+      </div>
+
+      <aside class="side-card rk-side">
+        <h3>Preview</h3>
+        <div class="rk-phone" id="phone">
+          <div class="rk-phone-head" id="phoneHead"></div>
+          <div class="rk-phone-video" id="phoneVideo"></div>
+          <div class="rk-phone-rank" id="phoneRank">#1</div>
+          <div class="rk-phone-name" id="phoneName"></div>
+        </div>
+        <div class="summary-list" id="summary"></div>
+        <ul class="rk-problems" id="problems"></ul>
+        <div class="form-actions">
+          <button class="btn primary" type="button" id="render">Render video</button>
+          <span class="form-error" id="renderError" role="alert"></span>
+        </div>
+        <div class="rk-progress" id="progress" hidden>
+          <div class="rk-bar"><span id="bar"></span></div>
+          <small id="progressMsg"></small>
+        </div>
+        <div class="rk-output" id="output" hidden>
+          <h3>Result</h3>
+          <video id="outVideo" controls playsinline preload="metadata"></video>
+          <a class="btn" id="download" href="#">Download MP4</a>
+        </div>
+        <p class="rights">Use your own videos, or ones you have permission to use. Reposting other people's content can break copyright law and platform rules.</p>
+      </aside>
+    </div>
+  </section>
+</main>
+<script type="module" src="/ui/ranking.js"></script>
+</body>
+</html>

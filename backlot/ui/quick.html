@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OwlCut — Quick clips</title>
+<meta name="description" content="Clips cut and captioned locally, without Claude.">
+<script>(function(){var q=new URLSearchParams(location.search).get("theme"),t="dark";try{t=q||localStorage.getItem("backlot.theme")||"dark"}catch(e){t=q||"dark"}document.documentElement.dataset.theme=t==="light"?"light":"dark"})()</script>
+<link rel="stylesheet" href="/ui/board.css">
+<link rel="stylesheet" href="/ui/create.css">
+<link rel="stylesheet" href="/ui/studio.css">
+<link rel="stylesheet" href="/ui/clips.css">
+<script type="module" src="/ui/shell.js"></script>
+</head>
+<body>
+<main class="wrap" id="conteudo">
+  <header class="slate">
+    <div class="slate-main">
+      <h1 id="title">Loading…</h1>
+      <div class="meta-row" id="meta"></div>
+    </div>
+    <div class="slate-actions">
+      <a class="btn small" href="/clips?engine=local">New quick clips</a>
+    </div>
+  </header>
+
+  <section class="rstat" id="status" aria-live="polite">
+    <div class="rstat-head">
+      <span class="spinner" id="spin" aria-hidden="true"></span>
+      <div class="rstat-title">
+        <h2 id="stTitle">Working…</h2>
+        <p id="stSub">Everything runs on your Mac — no Claude usage.</p>
+      </div>
+      <span class="mono rstat-clock" id="clock"></span>
+    </div>
+    <ol class="rstat-steps" id="steps"></ol>
+    <div class="rstat-bar" role="progressbar" aria-label="Progress" aria-valuemin="0" aria-valuemax="100" id="barWrap"><span id="bar"></span></div>
+    <p class="rstat-act" id="msg"></p>
+    <div class="rstat-actions">
+      <button class="btn small" type="button" id="cancelBtn" hidden>Cancel</button>
+      <button class="btn small" type="button" id="deleteBtn" hidden>Delete</button>
+    </div>
+  </section>
+
+  <section class="renders" id="results" hidden>
+    <div class="lib-section-head"><h2>Your clips</h2><span class="count" id="count"></span>
+      <a class="btn small primary" id="zipLink" href="#" style="margin-left:auto" download>Download all (.zip)</a></div>
+    <div class="quick-saved" id="savedRow" hidden role="status" aria-live="polite"><span id="savedText"></span>
+      <button class="btn small" type="button" id="savedOpen" hidden>Open folder</button>
+      <button class="btn small" type="button" id="savedSave" hidden>Save to OwlCutVideos</button></div>
+    <div class="render-grid" id="grid"></div>
+  </section>
+</main>
+<script type="module" src="/ui/quick.js"></script>
+</body>
+</html>

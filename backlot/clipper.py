@@ -304,7 +304,7 @@ def build_prompt(form: dict[str, Any], project_id: str, meta: dict[str, Any]) ->
         focus = (f"The user marked {fmt_ts(focus_start)}–{fmt_ts(focus_end)}: prefer clips inside it "
                  "(you may still suggest 1-2 from outside if clearly better; say so in `reason`).")
     elif focus_start is not None:
-        focus = (f"The user pasted the link at {fmt_ts(focus_start)}: the first clip must start from that point "
+        focus = (f"The user marked {fmt_ts(focus_start)} as the start point: the first clip must start from there "
                  "(adjusted to begin on a full sentence); the others can come from the whole video.")
     else:
         focus = "No range marked: mine the whole video and spread the clips across its content."
@@ -323,6 +323,43 @@ def build_prompt(form: dict[str, Any], project_id: str, meta: dict[str, Any]) ->
         "but STOP at the final gate with the rendered clips (overall status `awaiting_review`)."
     )
 
+    local = bool(meta.get("local"))
+    if local:
+        src_lines = [
+            f"- Source video: a LOCAL FILE the user uploaded from their computer (\"{meta.get('name')}\", "
+            f"{(meta.get('size') or 0) / 1024**3:.2f} GB) — already at `projects/{project_id}/{meta.get('original_path')}`. "
+            "It is the user's own footage: there is no URL and nothing to download (no credit line in captions).",
+            f"- In clips.json write `source.url` as \"\", `source.title` as \"{meta.get('title') or meta.get('name')}\" "
+            "(or a better title once you know the content) and `source.channel` as \"\".",
+            f"- Original length: {fmt_ts(duration)} ({duration} s), {meta.get('width')}x{meta.get('height')}, "
+            f"video {meta.get('video_codec')}, audio {meta.get('audio_codec') or 'NONE'}",
+        ]
+        conv = (
+            f"Convert it once to `projects/{project_id}/assets/video/source.mp4` (H.264 + AAC, keep the resolution up to "
+            "1080p, `-movflags +faststart`; use `-c copy` when the codecs already allow it) so the review page can play it, "
+            "then delete the original to save disk."
+            if meta.get("needs_conversion") else
+            "It is already browser-playable as `source.mp4` — do NOT re-encode or copy it."
+        )
+        step1 = f"1. Source: {conv} Never copy the full video around — it can be many GB."
+        step2 = ("2. Transcription: extract the audio once (`ffmpeg -vn -ac 1 -ar 16000` to `assets/audio/source.wav`) and run "
+                 "`transcriber` (faster-whisper) with word timestamps on it. For videos longer than ~1 h, transcribe in "
+                 "~20-minute segments and offset the timestamps so they stay in seconds of the original video. "
+                 "Animated captions and cut points depend on these timings.")
+    else:
+        src_lines = [
+            f"- Source video: {meta.get('url')}",
+            f"- Title: {meta.get('title') or '(unknown)'} — channel: {meta.get('channel') or '(unknown)'}",
+            f"- Original length: {fmt_ts(duration)} ({duration} s)",
+            f"- YouTube captions: {', '.join(meta.get('captions', {}).get('manual') or []) or 'auto-generated only or none'}",
+        ]
+        step1 = (f"1. Download with `video_downloader` (format `video`, max_resolution `1080p`, "
+                 f"max_duration_seconds {max(duration + 120, 600)}) into `projects/{project_id}/assets/video/` and "
+                 "rename the video to `source.mp4`.")
+        step2 = ("2. Transcription: try `transcript_fetcher` (YouTube captions) to map the content quickly; for the "
+                 "candidate segments use `transcriber` (faster-whisper) with word timestamps — animated captions and "
+                 "cut points depend on them.")
+
     lines = [
         "CLIPS request from the OwlCut /clips page (the OpenMontage web UI).",
         "",
@@ -330,10 +367,7 @@ def build_prompt(form: dict[str, Any], project_id: str, meta: dict[str, Any]) ->
         "use the **clip-factory** pipeline (pipeline_defs/clip-factory.yaml) with each stage's director skill.",
         "",
         "## Brief",
-        f"- Source video: {meta.get('url')}",
-        f"- Title: {meta.get('title') or '(unknown)'} — channel: {meta.get('channel') or '(unknown)'}",
-        f"- Original length: {fmt_ts(duration)} ({duration} s)",
-        f"- YouTube captions: {', '.join(meta.get('captions', {}).get('manual') or []) or 'auto-generated only or none'}",
+        *src_lines,
         f"- Number of clips: {count}",
         f"- Length of each clip: {length['min']}–{length['max']} s",
         f"- Platforms: {plat_lines}",
@@ -343,12 +377,8 @@ def build_prompt(form: dict[str, Any], project_id: str, meta: dict[str, Any]) ->
         f"- User notes: {notes or '(none)'}",
         "",
         "## How to produce",
-        f"1. Download with `video_downloader` (format `video`, max_resolution `1080p`, "
-        f"max_duration_seconds {max(duration + 120, 600)}) into `projects/{project_id}/assets/video/` and "
-        "rename the video to `source.mp4`.",
-        "2. Transcription: try `transcript_fetcher` (YouTube captions) to map the content quickly; for the "
-        "candidate segments use `transcriber` (faster-whisper) with word timestamps — animated captions and "
-        "cut points depend on them.",
+        step1,
+        step2,
         "3. Rank candidates with the script-director criteria (hook, stands alone, value, energy, platform fit). "
         "Generate at least twice as many candidates as requested and select the best.",
         "4. For 9:16 and 4:5 use `face_tracker` + `auto_reframe` (framing that follows the face). "
@@ -557,30 +587,77 @@ def post_text(entry: dict[str, Any]) -> str:
     return "\n\n".join(p for p in parts if p)
 
 
-def build_bundle(project_id: str, platforms: list[str], title: str = "") -> bytes:
-    """Zip: <platform>/<NN>-<slug>.mp4 + .txt (+ cover), and a posting checklist."""
-    import io
-    import zipfile
+KIT_DIR = "Publishing kit"
+
+
+def kit_items(project_id: str, platforms: list[str], title: str = "") -> list[tuple[str, Any]]:
+    """The publishing kit as (relative path, source Path | text): <platform>/<NN>-<slug>.mp4 + .txt
+    (+ cover) and a posting checklist. Videos are the delivery copies (watermark + fades)."""
+    from backlot import branding
 
     state = publish_state(project_id, platforms)
     project_dir = PROJECTS_DIR / project_id
-    buf = io.BytesIO()
+    items: list[tuple[str, Any]] = []
     lines = [f"Publishing kit — {title or project_id}", ""]
+    for c in state["clips"]:
+        plain = unicodedata.normalize("NFKD", c.get("title") or c["id"]).encode("ascii", "ignore").decode()
+        slug = re.sub(r"[^a-z0-9]+", "-", plain.lower()).strip("-")[:40] or c["id"]
+        stem = f"{c['rank']:02d}-{slug}"
+        for p, e in c["platforms"].items():
+            folder = state["labels"][p].replace("/", "-")
+            items.append((f"{folder}/{stem}.mp4", branding.branded_copy(project_dir / e["video"], "clips")))
+            txt = post_text(e)
+            if p in ("shorts", "youtube") and e.get("title"):
+                txt = f"TITLE: {e['title']}\n\n{txt}"
+            items.append((f"{folder}/{stem}.txt", txt + "\n"))
+            if c.get("thumbnail"):
+                items.append((f"{folder}/{stem}-cover{Path(c['thumbnail']).suffix}", project_dir / c["thumbnail"]))
+            lines.append(f"[{'x' if e['posted'] else ' '}] {state['labels'][p]} — {stem}")
+    lines += ["", "Tip: post one clip a day per network, at the hours your audience watches most."]
+    items.append(("CHECKLIST.txt", "\n".join(lines) + "\n"))
+    return items
+
+
+def build_bundle(project_id: str, platforms: list[str], title: str = "") -> bytes:
+    """The publishing kit as one zip."""
+    import io
+    import zipfile
+
+    buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", compression=zipfile.ZIP_STORED) as zf:
-        for c in state["clips"]:
-            plain = unicodedata.normalize("NFKD", c.get("title") or c["id"]).encode("ascii", "ignore").decode()
-            slug = re.sub(r"[^a-z0-9]+", "-", plain.lower()).strip("-")[:40] or c["id"]
-            stem = f"{c['rank']:02d}-{slug}"
-            for p, e in c["platforms"].items():
-                folder = state["labels"][p].replace("/", "-")
-                zf.write(project_dir / e["video"], f"{folder}/{stem}.mp4")
-                txt = post_text(e)
-                if p in ("shorts", "youtube") and e.get("title"):
-                    txt = f"TITLE: {e['title']}\n\n{txt}"
-                zf.writestr(f"{folder}/{stem}.txt", txt + "\n")
-                if c.get("thumbnail"):
-                    zf.write(project_dir / c["thumbnail"], f"{folder}/{stem}-cover{Path(c['thumbnail']).suffix}")
-                lines.append(f"[{'x' if e['posted'] else ' '}] {state['labels'][p]} — {stem}")
-        lines += ["", "Tip: post one clip a day per network, at the hours your audience watches most."]
-        zf.writestr("CHECKLIST.txt", "\n".join(lines) + "\n")
+        for rel, src in kit_items(project_id, platforms, title):
+            if isinstance(src, Path):
+                zf.write(src, rel)
+            else:
+                zf.writestr(rel, src)
     return buf.getvalue()
+
+
+def save_kit(project_id: str, platforms: list[str], title: str = "",
+             created_at: Optional[float] = None) -> Path:
+    """Write the kit, unzipped, into the production's OwlCutVideos folder
+    (Clips/<Title>_<date>/Publishing kit/). Videos are APFS clones: no extra disk space.
+    Re-saving replaces the kit (renamed or removed clips don't linger)."""
+    from backlot import exports
+
+    items = kit_items(project_id, platforms, title)
+    folder = exports.project_folder(project_id, "clips", title, created_at) / KIT_DIR
+    folder.mkdir(parents=True, exist_ok=True)
+    keep: set[Path] = set()
+    for rel, src in items:
+        dest = folder / rel
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        keep.add(dest)
+        if isinstance(src, Path):
+            if not exports._place(src, dest) and not dest.exists():
+                raise OSError(f"Couldn't save {rel}.")
+        else:
+            tmp = dest.with_name(dest.name + ".tmp")
+            tmp.write_text(src, encoding="utf-8")
+            tmp.replace(dest)
+    for f in sorted(folder.rglob("*"), reverse=True):      # drop what's no longer in the kit
+        if f.is_file() and f not in keep:
+            f.unlink()
+        elif f.is_dir() and not any(f.iterdir()):
+            f.rmdir()
+    return folder

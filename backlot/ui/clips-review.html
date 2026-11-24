@@ -30,6 +30,21 @@
     <div class="md" id="agentMsg"></div>
   </section>
 
+  <section class="rstat" id="renderStatus" hidden aria-live="polite">
+    <div class="rstat-head">
+      <span class="spinner" id="rsSpin" aria-hidden="true"></span>
+      <div class="rstat-title">
+        <h2 id="rsTitle">Rendering your clips</h2>
+        <p id="rsSub"></p>
+      </div>
+      <span class="mono rstat-clock" id="rsClock"></span>
+    </div>
+    <ol class="rstat-steps" id="rsSteps"></ol>
+    <div class="rstat-bar" role="progressbar" aria-label="Clips rendered" aria-valuemin="0" aria-valuemax="100" id="rsBarWrap"><span id="rsBar"></span></div>
+    <ul class="rstat-clips" id="rsClips"></ul>
+    <p class="rstat-act" id="rsAct"></p>
+  </section>
+
   <section class="progress-card" id="progress" hidden>
     <div class="thinking"><span class="spinner"></span><span id="progressText">The agent is downloading and transcribing the video…</span></div>
     <ol class="progress-stages" id="progressStages"></ol>
@@ -83,6 +98,18 @@
     <button class="btn primary" type="button" id="approveBtn">Approve</button>
   </div>
 </div>
+<dialog class="confirm-dlg" id="confirmDlg" aria-labelledby="cdTitle">
+  <form method="dialog" class="cd-in">
+    <h2 id="cdTitle">Render these clips?</h2>
+    <p class="cd-sub" id="cdSub"></p>
+    <ol class="cd-list" id="cdList"></ol>
+    <p class="cd-note">The agent frames each clip around the speaker, adds the captions and intro you picked, and renders it. You can follow every step at the top of this page.</p>
+    <div class="cd-actions">
+      <button class="btn" value="cancel" type="submit">Back</button>
+      <button class="btn primary" value="go" type="submit" id="cdGo">Start rendering</button>
+    </div>
+  </form>
+</dialog>
 <script type="module" src="/ui/clips-review.js"></script>
 </body>
 </html>

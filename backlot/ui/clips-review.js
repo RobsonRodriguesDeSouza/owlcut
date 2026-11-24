@@ -16,6 +16,9 @@ let segEnd = null;          // stop time for segment playback
 let filter = "all";
 let sending = false;
 let lastSig = "";
+const SENT_KEY = `owlcut.render.${location.pathname}`;
+function sentInfo() { try { return JSON.parse(sessionStorage.getItem(SENT_KEY) || "null"); } catch { return null; } }
+function setSent(v) { try { v ? sessionStorage.setItem(SENT_KEY, JSON.stringify(v)) : sessionStorage.removeItem(SENT_KEY); } catch { /* private mode */ } }
 
 const STAGE_LABEL = { idea: "Brief", script: "Transcript and candidates", scene_plan: "Framing", assets: "Captions and assets", edit: "Edit", compose: "Render", publish: "Publish" };
 
@@ -234,7 +237,10 @@ function clipCard(c, rank) {
   const tags = el("div", { class: "probe-tags" });
   if (c.crop) tags.append(el("span", { class: "chip" }, `Framing: ${c.crop}`));
   if (c.status === "rejected") tags.append(el("span", { class: "chip" }, "Rejected by the agent"));
-  if (Object.keys(c.renders || {}).length) tags.append(el("span", { class: "chip ok" }, "Rendered"));
+  const rs = clipRenderState(c);
+  if (rs === "rendered") tags.append(el("span", { class: "chip ok" }, "Rendered ✓"));
+  else if (rs === "rendering") tags.append(el("span", { class: "chip accent live" }, "Rendering…"));
+  else if (rs === "queued") tags.append(el("span", { class: "chip" }, "Queued for render"));
   if (changed(c)) tags.append(el("span", { class: "chip accent" }, "Trimmed by you"));
   if (tags.childNodes.length) body.append(tags);
   const bars = scoreBars(c.scores || {});
@@ -325,14 +331,21 @@ function renderActionBar() {
   $("selCount").textContent = sel.length === 1 ? "1 clip selected" : `${sel.length} clips selected`;
   $("selTotal").textContent = sel.length ? ` · ${secs(total)} in total` : "";
   const btn = $("approveBtn");
-  if (m === "select") btn.textContent = `Approve and render ${sel.length || ""}`.trim();
-  else btn.textContent = edited.length ? `Re-render ${edited.length} trimmed` : "Approve finished clips";
+  const rendering = renderPhase().active;
+  if (rendering) btn.textContent = "Rendering…";
+  else if (m === "select") btn.textContent = sel.length ? `Continue to render (${sel.length} ${sel.length === 1 ? "clip" : "clips"}) →` : "Select clips to render";
+  else btn.textContent = edited.length ? `Re-render ${edited.length} trimmed →` : "Approve finished clips →";
   const isBusy = busy();
   btn.disabled = isBusy || (m === "select" && !sel.length);
+  btn.classList.toggle("pulse-cta", !isBusy && m === "select" && sel.length > 0 && data.job.status === "waiting");
   $("sendMore").disabled = isBusy;
-  $("actionNote").textContent = isBusy && !sending
-    ? "The agent is working — the buttons unlock when it stops."
-    : data.job.status === "waiting" ? "The agent is waiting for your decision." : "";
+  $("actionNote").textContent = rendering
+    ? "Rendering in progress — follow it at the top of the page."
+    : isBusy && !sending
+      ? "The agent is working — the buttons unlock when it stops."
+      : m === "select" && data.job.status === "waiting"
+        ? "Tick “Use” on the clips you like, trim if needed, then continue."
+        : data.job.status === "waiting" ? "The agent is waiting for your decision." : "";
 }
 
 function approvalMessage() {
@@ -360,10 +373,11 @@ function approvalMessage() {
       "Update the renders and clips.json when done.",
     ].join("\n");
   }
+  setSent(null);
   return "Clips approved on the /clips page. Go ahead to the publish stage.";
 }
 
-async function send(text) {
+async function send(text, renderIds = null) {
   if (!text.trim()) return;
   sending = true;
   renderActionBar();
@@ -372,6 +386,11 @@ async function send(text) {
     $("moreText").value = "";
     $("moreBox").open = false;
     $("actionNote").textContent = "Sent. The agent is back to work.";
+    if (renderIds) {
+      setSent({ at: Date.now() / 1000, ids: renderIds });
+      renderStatus();
+      $("renderStatus").scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
+    }
   } catch (e) {
     $("actionNote").textContent = `Couldn't send: ${e.message}`;
   } finally {
@@ -380,8 +399,125 @@ async function send(text) {
   }
 }
 
-$("approveBtn").addEventListener("click", () => send(approvalMessage()));
-$("sendMore").addEventListener("click", () => send($("moreText").value));
+// ---------- confirm + render status ----------
+function openConfirm() {
+  const m = mode();
+  const sel = selection();
+  const edited = sel.filter(changed);
+  const list = m === "select" ? sel : edited;
+  if (!list.length) { send(approvalMessage()); return; }   // "approve finished clips": nothing to render
+  const aspects = [...new Set(((data.job.form || {}).platforms || []).map((p) => (p === "feed" ? "4:5" : p === "youtube" ? "16:9" : "9:16")))];
+  const total = list.reduce((a, c) => a + (cur(c).end - cur(c).start), 0);
+  $("cdTitle").textContent = m === "select"
+    ? `Render ${list.length} ${list.length === 1 ? "clip" : "clips"}?`
+    : `Re-render ${list.length} trimmed ${list.length === 1 ? "clip" : "clips"}?`;
+  $("cdSub").textContent = `${secs(total)} in total · ${aspects.join(" + ") || "9:16"} · usually a few minutes per clip`;
+  const ol = $("cdList");
+  ol.innerHTML = "";
+  for (const c of list) {
+    const v = cur(c);
+    ol.append(el("li", {},
+      el("b", {}, c.title || c.id),
+      el("span", { class: "mono" }, `${ts(v.start, true)} → ${ts(v.end, true)} · ${secs(v.end - v.start)}${changed(c) ? " · trimmed" : ""}`)));
+  }
+  const dlg = $("confirmDlg");
+  dlg.returnValue = "";
+  dlg.showModal();
+  dlg.addEventListener("close", function onClose() {
+    dlg.removeEventListener("close", onClose);
+    if (dlg.returnValue === "go") send(approvalMessage(), list.map((c) => c.id));
+  });
+}
+
+function clipRenderState(c) {
+  if (Object.keys(c.renders || {}).length && c.status !== "selected") return "rendered";
+  const ph = renderPhase();
+  if (!ph.active || !ph.ids.includes(c.id)) return Object.keys(c.renders || {}).length ? "rendered" : null;
+  const pending = ph.ids.filter((id) => { const x = clips().find((y) => y.id === id); return x && !Object.keys(x.renders || {}).length; });
+  return pending[0] === c.id ? "rendering" : "queued";
+}
+
+function renderPhase() {
+  if (!data) return { active: false, ids: [] };
+  const sent = sentInfo();
+  const running = data.job.status === "running";
+  const st = (data.clips.status || "").toLowerCase();
+  // ids being rendered: what this tab asked for, else whatever the agent marked selected
+  const ids = sent ? sent.ids : clips().filter((c) => c.status === "selected").map((c) => c.id);
+  const active = running && (!!sent || st === "rendering");
+  return { active, ids, sent, running, st };
+}
+
+let clockTimer = null;
+function renderStatus() {
+  const box = $("renderStatus");
+  const ph = renderPhase();
+  const sent = ph.sent;
+  // show while rendering, and keep the outcome visible once it stops (until the next decision)
+  const show = ph.active || (!!sent && !ph.running);
+  box.hidden = !show;
+  clearInterval(clockTimer);
+  if (!show) return;
+
+  const items = ph.ids.map((id) => clips().find((c) => c.id === id)).filter(Boolean);
+  const doneN = items.filter((c) => Object.keys(c.renders || {}).length && c.status !== "selected").length;
+  const total = items.length || 1;
+  const finished = !ph.running;
+  const failed = finished && data.job.status === "error";
+  const allDone = finished && !failed && doneN >= items.length && items.length > 0;
+
+  box.classList.toggle("done", allDone);
+  box.classList.toggle("failed", failed || (finished && !allDone));
+  $("rsSpin").style.display = ph.active ? "" : "none";
+  $("rsTitle").textContent = ph.active
+    ? (doneN ? `Rendering — ${doneN} of ${items.length} ready` : "Rendering your clips")
+    : allDone ? `${items.length} ${items.length === 1 ? "clip is" : "clips are"} ready`
+      : failed ? "Rendering stopped with an error"
+        : "The agent stopped before finishing";
+  $("rsSub").textContent = ph.active
+    ? "You can leave this page open or come back later — it updates on its own."
+    : allDone ? "Watch them below in “Finished clips”, then approve or trim and re-render."
+      : "Read the agent's message below for what happened and what it needs.";
+
+  // steps
+  const compose = (data.job.stages || []).find((x) => x.name === "compose");
+  const step = !ph.active && allDone ? 4 : doneN > 0 || (compose && compose.status === "in_progress") ? 3 : ph.active ? 2 : 1;
+  const steps = ["Sent to the agent", "Framing and captions", `Rendering ${doneN}/${items.length}`, "Ready to watch"];
+  const ol = $("rsSteps");
+  ol.innerHTML = "";
+  steps.forEach((label, i) => {
+    const n = i + 1;
+    const cls = n < step || (n === 4 && allDone) ? "done" : n === step && ph.active ? "active" : "";
+    ol.append(el("li", { class: cls }, el("span", { class: "pdot" }), label));
+  });
+  const pct = Math.round((doneN / total) * 100);
+  $("rsBar").style.width = `${ph.active ? Math.max(pct, 4) : pct}%`;
+  $("rsBarWrap").setAttribute("aria-valuenow", String(pct));
+
+  const ul = $("rsClips");
+  ul.innerHTML = "";
+  for (const c of items) {
+    const s = clipRenderState(c) || (finished ? "notdone" : "queued");
+    const label = { rendered: "Ready ✓", rendering: "Rendering…", queued: "Queued", notdone: "Not rendered" }[s];
+    ul.append(el("li", { class: `rc-${s}` }, el("span", { class: "rc-dot" }), el("b", {}, c.title || c.id), el("span", { class: "rc-state" }, label)));
+  }
+
+  const act = data.job.activity;
+  $("rsAct").textContent = ph.active && act && act.text ? `Now: ${act.text}` : "";
+
+  const started = (sent && sent.at) || data.job.last_reply_ts;
+  const tick = () => {
+    if (!started) { $("rsClock").textContent = ""; return; }
+    const end = ph.active ? Date.now() / 1000 : (data.job.updated_at || Date.now() / 1000);
+    const s = Math.max(0, Math.round(end - started));
+    $("rsClock").textContent = `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+  };
+  tick();
+  if (ph.active) clockTimer = setInterval(tick, 1000);
+}
+
+$("approveBtn").addEventListener("click", openConfirm);
+$("sendMore").addEventListener("click", () => { setSent(null); send($("moreText").value); });
 document.querySelectorAll('input[name="filter"]').forEach((r) => r.addEventListener("change", () => { filter = r.value; renderList(); }));
 
 // ---------- loop ----------
@@ -406,6 +542,7 @@ async function refresh() {
     renderTimeline();
   }
   renderRenders();
+  renderStatus();
   renderActionBar();
 }
 

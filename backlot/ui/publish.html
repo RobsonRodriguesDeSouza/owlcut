@@ -26,13 +26,39 @@
 
   <!-- list mode -->
   <section id="listMode" hidden>
+    <div class="lib-section-head saved-head"><h2>Saved in OwlCutVideos</h2><span class="count" id="savedCount"></span>
+      <button class="btn small" type="button" id="savedRefresh" style="margin-left:auto">Refresh</button></div>
+    <p class="help saved-root" id="savedRoot"></p>
+    <div class="saved-list" id="saved"></div>
+    <div class="empty-state" id="savedEmpty" hidden>
+      <b>Nothing in OwlCutVideos yet</b>
+      Clips, rankings and videos you make are saved there automatically — they'll show up here to post.
+    </div>
+
+    <div class="lib-section-head saved-head"><h2>AI agent clips</h2><span class="count">captions written by the agent</span></div>
     <div class="lib-grid" id="kits"></div>
     <div class="empty-state" id="listEmpty" hidden>
-      <b>No finished clips yet</b>
-      When a clips production renders its videos, the publishing kit shows up here.
+      <b>No AI-agent clips yet</b>
+      When the agent renders clips, its publishing kit (captions per network) shows up here.
       <div style="margin-top:16px"><a class="btn primary" href="/clips">Make clips from a video</a></div>
     </div>
   </section>
+
+  <dialog class="post-dlg" id="postDlg" aria-labelledby="pdTitle">
+    <div class="pd-in">
+      <div class="pd-media"><video id="pdVideo" controls playsinline preload="metadata"></video></div>
+      <div class="pd-body">
+        <div class="pd-top">
+          <div><h2 id="pdTitle"></h2><p class="help" id="pdSub"></p></div>
+          <button class="btn small" type="button" id="pdClose" aria-label="Close">✕</button>
+        </div>
+        <div class="seg compact pub-tabs" id="pdTabs" role="radiogroup" aria-label="Social network"></div>
+        <div class="pub-fields" id="pdFields"></div>
+        <div class="pub-actions" id="pdActions"></div>
+        <p class="help pd-how" id="pdHow"></p>
+      </div>
+    </div>
+  </dialog>
 
   <!-- kit mode -->
   <section id="kitMode" hidden>
@@ -40,6 +66,8 @@
       <div class="seg compact pub-tabs" id="tabs" role="radiogroup" aria-label="Social network"></div>
       <div class="pub-progress"><span id="progText"></span><i><b id="progBar"></b></i></div>
     </div>
+    <div class="pub-saved" id="kitSaved" hidden role="status" aria-live="polite"><span id="kitSavedText"></span>
+      <button class="btn small" type="button" id="kitReveal" hidden>Open folder</button></div>
     <div class="pub-note" id="draftNote" hidden>The agent hasn't written the text for this network yet. Write it here, or ask for it on the review page.</div>
     <div class="pub-list" id="pubList"></div>
   </section>

@@ -23,6 +23,7 @@ export const STATUS_LABEL = {
   error: "Error",
   cancelled: "Paused",
   interrupted: "Interrupted",
+  closed: "Cancelled",
 };
 
 export function statusBadge(status) {

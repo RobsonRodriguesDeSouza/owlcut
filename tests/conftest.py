@@ -129,3 +129,17 @@ def pytest_collection_modifyitems(config, items):
     for item in items:
         if "live_api" in item.keywords:
             item.add_marker(skip)
+
+
+@pytest.fixture(autouse=True)
+def _isolated_owlcut_output(tmp_path_factory, monkeypatch):
+    """Finished-video exports go to a temp dir, never the user's ~/Documents/OwlCutVideos."""
+    monkeypatch.setenv("OWLCUT_OUTPUT_DIR", str(tmp_path_factory.mktemp("owlcut-out")))
+    # ...and never read or write the user's real watermark settings
+    try:
+        from backlot import branding
+    except Exception:
+        return
+    brand = tmp_path_factory.mktemp("owlcut-brand")
+    monkeypatch.setattr(branding, "BRAND_DIR", brand / "branding")
+    monkeypatch.setattr(branding, "BRANDED_CACHE", brand / "branded")

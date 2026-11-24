@@ -9,6 +9,7 @@
 <link rel="stylesheet" href="/ui/board.css">
 <link rel="stylesheet" href="/ui/create.css">
 <link rel="stylesheet" href="/ui/studio.css">
+<link rel="stylesheet" href="/ui/clips.css">
 <script type="module" src="/ui/shell.js"></script>
 </head>
 <body>
@@ -16,12 +17,48 @@
   <header class="slate">
     <div>
       <h1>Library</h1>
-      <p class="page-sub">Make a video from scratch, or turn a YouTube video into clips for social media.</p>
+      <p class="page-sub">Make a video from scratch, or turn a YouTube video or your own file into clips for social media.</p>
     </div>
   </header>
 
   <div class="start-row" id="startRow"></div>
-  <div class="jobs-strip" id="jobs" aria-label="Recent productions"></div>
+  <section id="inprog" hidden>
+    <div class="lib-section-head">
+      <h2>In progress</h2>
+      <span class="count" id="inprogCount"></span>
+    </div>
+    <div class="prod-list" id="prodList"></div>
+  </section>
+  <details class="cancel-sec" id="cancelled" hidden open>
+    <summary class="lib-section-head">
+      <h2>Cancelled</h2>
+      <span class="count" id="cancelCount"></span>
+      <span class="cancel-toggle" aria-hidden="true"></span>
+    </summary>
+    <div class="cancel-tools">
+      <span>Cancelled productions keep their files until you delete them.</span>
+      <button class="btn small danger" type="button" id="deleteAllBtn">Delete all</button>
+    </div>
+    <ul class="cancel-list" id="cancelList"></ul>
+  </details>
+  <dialog class="confirm-dlg" id="delDlg" aria-labelledby="ddTitle">
+    <form method="dialog" class="cd-in">
+      <h2 id="ddTitle">Delete?</h2>
+      <p class="cd-sub" id="ddSub"></p>
+      <ul class="cd-list dd-list" id="ddList"></ul>
+      <label class="dd-check" id="ddExportRow" hidden>
+        <input type="checkbox" id="ddExports">
+        <span>Also delete their folders in <b>Documents/OwlCutVideos</b> <span class="mono" id="ddExportInfo"></span></span>
+      </label>
+      <p class="cd-note">Removes the project folders, renders, uploaded source videos and logs from OwlCut. This can't be undone.</p>
+      <p class="form-error" id="ddError" role="alert"></p>
+      <div class="cd-actions">
+        <button class="btn" value="cancel" type="submit" id="ddBack">Keep</button>
+        <button class="btn primary dd-go" value="go" type="button" id="ddGo">Delete</button>
+      </div>
+    </form>
+  </dialog>
+  <div class="jobs-strip" id="jobs" aria-label="Recently finished productions"></div>
 
   <div class="lib-section-head">
     <h2>Projects</h2>

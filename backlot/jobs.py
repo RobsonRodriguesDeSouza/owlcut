@@ -36,14 +36,39 @@ PIPELINE_DIR = REPO_ROOT / "pipeline_defs"
 HIDDEN_PIPELINES = {"framework-smoke"}
 ALLOWED_TOOLS = "Bash Read Write Edit Glob Grep WebSearch WebFetch Skill TodoWrite NotebookEdit"
 LOG_TAIL = 400
+DEFAULT_AGENT_MODEL = "claude-sonnet-5-5"   # economical default for the production agent
 
 # Statuses: running | waiting (agent ended its turn, needs a reply) | done | error | cancelled | interrupted
+# | closed (cancelled by the user from the Library: agent stopped, production off the in-progress list;
+#   project files are kept, and a reply on the job page reopens it)
 ACTIVE = {"running"}
+OPEN = {"running", "waiting", "error", "cancelled", "interrupted"}  # shown under "In progress"
 
 
 # ---------------------------------------------------------------------------
 # Claude CLI discovery
 # ---------------------------------------------------------------------------
+
+def agent_model() -> str:
+    """Model for the headless production agent, independent of the user's own
+    Claude Code default. Override with OWLCUT_AGENT_MODEL (environment or .env);
+    "default" means: don't pass --model, use the Claude Code default."""
+    val = os.environ.get("OWLCUT_AGENT_MODEL", "").strip() or _dotenv_value("OWLCUT_AGENT_MODEL")
+    return val or DEFAULT_AGENT_MODEL
+
+
+def _dotenv_value(key: str) -> str:
+    """A value from the repo's .env file ("" when absent)."""
+    val = ""
+    try:
+        for line in (REPO_ROOT / ".env").read_text(encoding="utf-8").splitlines():
+            k, sep, v = line.partition("=")
+            if sep and k.strip() == key:
+                val = v.strip().strip("'\"")
+    except OSError:
+        pass
+    return val
+
 
 def find_claude() -> Optional[str]:
     env = os.environ.get("OPENMONTAGE_CLAUDE_BIN")
@@ -159,6 +184,7 @@ def _music() -> list[dict[str, str]]:
 def options() -> dict[str, Any]:
     return {
         "claude_available": bool(find_claude()),
+        "agent_model": agent_model(),
         "pipelines": _pipelines(),
         "durations": [
             {"value": v, "label": l} for v, l in (
@@ -300,7 +326,9 @@ class JobManager:
         self._lock = threading.Lock()
         self._procs: dict[str, subprocess.Popen] = {}
         JOBS_DIR.mkdir(parents=True, exist_ok=True)
-        self._recover()
+        # No recovery here: backlot.server builds its app (and so a JobManager) at
+        # import time, and a mere import must never rewrite live job files. The
+        # server calls recover() from its lifespan startup instead.
 
     # ---- persistence ----------------------------------------------------
 
@@ -328,8 +356,9 @@ class JobManager:
         with open(self._dir(job_id) / "log.jsonl", "a", encoding="utf-8") as f:
             f.write(json.dumps(entry, ensure_ascii=False) + "\n")
 
-    def _recover(self) -> None:
-        """Jobs left 'running' by a previous server process can be resumed by a reply."""
+    def recover(self) -> None:
+        """Jobs left 'running' by a previous server process can be resumed by a reply.
+        Call once when a server process starts serving — never on import."""
         for path in JOBS_DIR.glob("*/job.json"):
             try:
                 job = json.loads(path.read_text(encoding="utf-8"))
@@ -351,8 +380,12 @@ class JobManager:
                 job = json.loads(path.read_text(encoding="utf-8"))
             except (OSError, json.JSONDecodeError):
                 continue
-            jobs.append({k: job.get(k) for k in (
-                "id", "project_id", "kind", "title", "status", "created_at", "updated_at", "cost_usd", "turns")})
+            row = {k: job.get(k) for k in (
+                "id", "project_id", "kind", "title", "status", "created_at", "updated_at", "cost_usd", "turns",
+                "closed_at")}
+            if job.get("status") in OPEN or job.get("status") == "closed":
+                row.update(_progress(job))
+            jobs.append(row)
         jobs.sort(key=lambda j: j.get("updated_at") or 0, reverse=True)
         return jobs
 
@@ -388,11 +421,20 @@ class JobManager:
         source = None
         if kind == "clips":
             from backlot import clipper  # local import keeps yt-dlp optional for /new
-            source = clipper.probe(str(form.get("url") or ""))  # raises ValueError with a user-facing message
-            if source.get("is_live"):
-                raise ValueError("Live streams aren't supported yet; use the video once the stream has ended.")
-            title = (form.get("title") or "").strip() or f"Clips — {source.get('title') or source['video_id']}"
-            form = {**form, "pipeline": "clip-factory", "url": source["url"]}
+            if form.get("upload_id"):
+                from backlot import uploads
+                try:
+                    source = {"local": True, **uploads.ready_info(str(form["upload_id"]))}
+                except KeyError:
+                    raise ValueError("The uploaded video was not found; upload it again.")
+                title = (form.get("title") or "").strip() or f"Clips — {source.get('title') or source['name']}"
+                form = {**form, "pipeline": "clip-factory", "url": ""}
+            else:
+                source = clipper.probe(str(form.get("url") or ""))  # raises ValueError with a user-facing message
+                if source.get("is_live"):
+                    raise ValueError("Live streams aren't supported yet; use the video once the stream has ended.")
+                title = (form.get("title") or "").strip() or f"Clips — {source.get('title') or source['video_id']}"
+                form = {**form, "pipeline": "clip-factory", "url": source["url"]}
         else:
             topic = (form.get("topic") or "").strip()
             if len(topic) < 3:
@@ -400,6 +442,9 @@ class JobManager:
             title = form.get("title") or topic
         with self._lock:
             project_id = unique_project_id(title)
+            if source and source.get("local"):
+                from backlot import uploads
+                source = {**source, **uploads.claim(source["upload_id"], project_id)}
             job = {
                 "id": project_id,
                 "project_id": project_id,
@@ -437,6 +482,79 @@ class JobManager:
         self._start_turn(job, text, first=False)
         return job
 
+    def close(self, job_id: str) -> dict[str, Any]:
+        """Cancel a production for good (Library "Cancel"): stop the agent if it
+        is mid-turn and take the job off the in-progress list. Files stay."""
+        with self._lock:
+            job = self._load(job_id)
+            proc = self._procs.get(job_id)
+            if proc and proc.poll() is None:
+                job["cancel_requested"] = job["close_requested"] = True
+                job["closed_from"] = "cancelled"     # it was mid-turn: reopening resumes as paused
+                self._save(job)
+            else:
+                if job.get("status") in ("done", "closed"):
+                    return job
+                job["closed_from"] = job.get("status")
+                job["status"] = "closed"
+                job["closed_at"] = time.time()
+                self._save(job)
+                proc = None
+        if proc:
+            try:
+                os.killpg(proc.pid, signal.SIGTERM)
+            except (ProcessLookupError, PermissionError):
+                proc.terminate()
+        else:
+            self._log(job_id, {"kind": "status", "text": "closed"})
+        return self._load(job_id)
+
+    def reopen(self, job_id: str) -> dict[str, Any]:
+        """Undo a Library "Cancel": put the production back in progress, in the
+        state it was in (a turn that was cut short comes back as paused)."""
+        with self._lock:
+            job = self._load(job_id)
+            if job.get("status") != "closed":
+                return job
+            prev = job.pop("closed_from", None)
+            job["status"] = prev if prev in OPEN and prev != "running" else "waiting"
+            job.pop("closed_at", None)
+            self._save(job)
+        self._log(job_id, {"kind": "status", "text": job["status"]})
+        return job
+
+    def delete(self, job_id: str, include_exports: bool = False, dry_run: bool = False) -> dict[str, Any]:
+        """Delete a cancelled production for good: its job (log, state) and its project folder
+        (renders, assets, the uploaded source). ``dry_run`` only reports what would go."""
+        from backlot import exports
+        with self._lock:
+            job = self._load(job_id)
+            if job.get("status") != "closed":
+                raise ValueError("Only cancelled productions can be deleted.")
+            proc = self._procs.get(job_id)
+            if proc and proc.poll() is None:
+                raise RuntimeError("The agent is still stopping — try again in a moment.")
+            pid = str(job.get("project_id") or "")
+            pdir = (PROJECTS_DIR / pid).resolve() if re.fullmatch(r"[a-z0-9][a-z0-9-]{0,80}", pid) else None
+            if pdir is not None and (pdir.parent != PROJECTS_DIR.resolve() or not pdir.is_dir()):
+                pdir = None
+            cat = "clips" if job.get("kind") == "clips" else "video"
+            export = exports.existing_folder(cat, f"project:{pid}") if pid else None
+            jdir = self._dir(job_id)
+            # a file hard-linked into OwlCutVideos only frees space when that copy goes too
+            freed = _du(pdir, jdir, export) if include_exports else \
+                (exports.dir_size(pdir) if pdir else 0) + exports.dir_size(jdir)
+            report = {"id": job_id, "bytes": freed, "export": str(export) if export else None,
+                      "with_exports_bytes": _du(pdir, jdir, export)}
+            if dry_run:
+                return report
+            if pdir:
+                shutil.rmtree(pdir, ignore_errors=True)
+            shutil.rmtree(jdir, ignore_errors=True)
+        if pid:
+            exports.forget(cat, f"project:{pid}", delete_files=include_exports)
+        return report
+
     def cancel(self, job_id: str) -> dict[str, Any]:
         proc = self._procs.get(job_id)
         if proc and proc.poll() is None:
@@ -458,6 +576,9 @@ class JobManager:
                "--permission-mode", "acceptEdits", "--allowedTools", *ALLOWED_TOOLS.split(),
                "--disallowedTools", "AskUserQuestion"]
         cmd += ["--session-id", job["session_id"]] if first else ["--resume", job["session_id"]]
+        model = agent_model()
+        if model.lower() != "default":
+            cmd += ["--model", model]
 
         env = dict(os.environ)
         for k in ("CLAUDECODE", "CLAUDE_CODE_ENTRYPOINT", "CLAUDE_CODE_SSE_PORT"):
@@ -513,7 +634,11 @@ class JobManager:
                 if result.get("result"):
                     last_text = str(result["result"]).strip()
             job["last_message"] = last_text
-            if job.pop("cancel_requested", False):
+            if job.pop("close_requested", False):
+                job.pop("cancel_requested", None)
+                job["status"] = "closed"
+                job["closed_at"] = time.time()
+            elif job.pop("cancel_requested", False):
                 job["status"] = "cancelled"
                 job["last_message"] = (last_text + "\n\n" if last_text else "") + \
                     "_Turn cancelled. Send a message to pick up where it stopped._"
@@ -527,6 +652,26 @@ class JobManager:
                 job["status"] = "waiting"
             self._save(job)
         self._log(job_id, {"kind": "status", "text": job["status"]})
+        # mirror whatever is rendered so far into ~/Documents/OwlCutVideos
+        from backlot import exports
+        exports.export_project(job["project_id"], job.get("kind") or "video", job.get("title") or "", job.get("created_at"))
+
+
+def _du(*paths: Optional[Path]) -> int:
+    """Size of the files in these folders together, each file counted once (hard links share one copy)."""
+    seen, total = set(), 0
+    for path in paths:
+        if not path or not Path(path).is_dir():
+            continue
+        for f in Path(path).rglob("*"):
+            try:
+                st = f.lstat()
+            except OSError:
+                continue
+            if f.is_file() and (st.st_dev, st.st_ino) not in seen:
+                seen.add((st.st_dev, st.st_ino))
+                total += st.st_size
+    return total
 
 
 _STAGE_KEYS = ("name", "gated", "status", "timestamp", "human_approved", "error",
@@ -547,6 +692,36 @@ def _stages_for(job: dict[str, Any], project_dir: Path) -> list[dict[str, Any]]:
         meta = _load_pipeline_meta((job.get("form") or {}).get("pipeline") or "animated-explainer")
         stages = [{"name": st["name"], "gated": st["gated"], "status": "pending"} for st in meta["stages"]]
     return stages
+
+
+_STAGE_LABEL = {
+    "research": "Research", "proposal": "Proposal", "idea": "Idea", "script": "Script",
+    "scene_plan": "Scene plan", "assets": "Assets", "edit": "Edit", "compose": "Render", "publish": "Publish",
+}
+
+
+def _progress(job: dict[str, Any]) -> dict[str, Any]:
+    """Compact progress for the Library's in-progress cards."""
+    project_dir = PROJECTS_DIR / str(job.get("project_id") or "")
+    try:
+        stages = _stages_for(job, project_dir)
+    except Exception:
+        stages = []
+    done = sum(1 for st in stages if st.get("status") == "completed")
+    current = next((st for st in stages if st.get("status") in ("in_progress", "awaiting_human", "failed")), None) \
+        or next((st for st in stages if st.get("status") != "completed"), None)
+    msg = re.sub(r"[`*_#>|]+", "", str(job.get("last_message") or "")).strip()
+    msg = re.sub(r"\s+", " ", msg)
+    src = job.get("source") or {}
+    return {
+        "stages_total": len(stages),
+        "stages_done": done,
+        "stage": (_STAGE_LABEL.get(current["name"], current["name"].replace("_", " ").capitalize()) if current else None),
+        "stage_status": current.get("status") if current else None,
+        "summary": msg[:220] + ("…" if len(msg) > 220 else ""),
+        "source_name": src.get("name") or src.get("title") or "",
+        "error": str(job.get("error") or "")[:300] if job.get("status") == "error" else "",
+    }
 
 
 def _publish_done(project_id: str) -> bool:

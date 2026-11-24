@@ -2,6 +2,7 @@
 
 import { el, getJSON, mediaURL, thumbURL } from "/ui/lib.js";
 import { postJSON } from "/ui/create-lib.js";
+import { renderSaved } from "/ui/publish-saved.js";
 
 const $ = (id) => document.getElementById(id);
 const jobId = decodeURIComponent(location.pathname.split("/publish/")[1] || "").replace(/\/$/, "");
@@ -27,6 +28,9 @@ function ago(epoch) {
 // ---------------------------------------------------------------- list mode
 async function renderList() {
   $("listMode").hidden = false;
+  $("title").textContent = "Publish";
+  $("sub").textContent = "Pick a video, write the caption and hashtags for each network, copy, download and post. Mark it as posted to keep track.";
+  renderSaved(toast).catch((e) => { $("savedRoot").textContent = e.message; });
   const kits = await getJSON("/api/publish");
   const ready = kits.filter((k) => k.clips > 0);
   const grid = $("kits");
@@ -155,7 +159,35 @@ function renderKit() {
   renderProgress();
 }
 
+// The kit, unzipped, in Documents/OwlCutVideos/Clips/<Title>_<date>/Publishing kit/ —
+// also done on every zip download. Re-saving refreshes it with the latest text.
+let saving = null;
+function saveKit() {
+  if (saving) return saving;
+  const btn = $("kitSave");
+  const box = $("kitSaved"), text = $("kitSavedText");
+  if (btn) { btn.disabled = true; btn.textContent = "Saving…"; }
+  box.hidden = false; box.className = "pub-saved";
+  text.textContent = "Saving the kit to OwlCutVideos… (the first time can take a minute while the watermark is applied)";
+  $("kitReveal").hidden = true;
+  saving = postJSON(`/api/publish/${encodeURIComponent(jobId)}/kit/save`, {})
+    .then((r) => {
+      box.classList.add("ok");
+      text.textContent = `Saved to ${r.shown}`;
+      text.title = r.folder;
+      $("kitReveal").hidden = false;
+    })
+    .catch((e) => { box.classList.add("err"); text.textContent = e.message || "Couldn't save the kit."; })
+    .finally(() => {
+      saving = null;
+      if (btn) { btn.disabled = false; btn.textContent = "Save to OwlCutVideos"; }
+    });
+  return saving;
+}
+
 async function loadKit() {
+  $("kitReveal").onclick = () => postJSON(`/api/publish/${encodeURIComponent(jobId)}/kit/reveal`, {})
+    .catch((e) => { $("kitSavedText").textContent = e.message; });
   $("kitMode").hidden = false;
   try {
     data = await getJSON(`/api/publish/${encodeURIComponent(jobId)}`);
@@ -179,7 +211,9 @@ async function loadKit() {
   act.innerHTML = "";
   act.append(
     el("a", { class: "btn small", href: `/clips/${encodeURIComponent(j.id)}` }, "Review clips"),
-    data.clips.length ? el("a", { class: "btn primary small", href: `/api/publish/${encodeURIComponent(j.id)}/kit.zip` }, "Download kit (.zip)") : null,
+    data.clips.length ? el("button", { class: "btn small", type: "button", id: "kitSave", onclick: () => saveKit() }, "Save to OwlCutVideos") : null,
+    data.clips.length ? el("a", { class: "btn primary small", href: `/api/publish/${encodeURIComponent(j.id)}/kit.zip`,
+      onclick: () => saveKit() }, "Download kit (.zip)") : null,
   );
   const tabs = $("tabs");
   tabs.innerHTML = "";

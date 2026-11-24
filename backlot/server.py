@@ -9,22 +9,35 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import re
+import shutil
+import subprocess
+import sys
 import time
 from contextlib import asynccontextmanager, suppress
 from pathlib import Path
 from typing import Optional
-from urllib.parse import urlparse
+from urllib.parse import quote, urlparse
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
-from fastapi.responses import FileResponse, HTMLResponse, Response, StreamingResponse
+from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
 from backlot.state import PROJECTS_DIR, REPO_ROOT, list_projects, load_board_state, summarize_project
 from backlot import clipper
+from backlot import ranking
+from backlot import uploads
+from backlot import quickclips
+from backlot import branding
+from backlot import exports
+from backlot import library
+from backlot import social_tiktok
 from backlot.jobs import JobManager
 from backlot.jobs import options as job_options
+
+log = logging.getLogger("owlcut.server")
 
 UI_DIR = Path(__file__).resolve().parent / "ui"
 THUMB_CACHE_DIR = REPO_ROOT / ".backlot" / "thumbs"
@@ -169,6 +182,9 @@ async def _watch_projects() -> None:
 async def _lifespan(app: FastAPI):
     """Own and cleanly stop the project watcher with FastAPI's lifespan API."""
 
+    jobs = getattr(app.state, "jobs", None)
+    if jobs is not None:
+        await asyncio.to_thread(jobs.recover)  # only a serving process marks orphaned turns
     task = asyncio.create_task(_watch_projects())
     app.state.watch_task = task
     try:
@@ -295,6 +311,7 @@ def create_app() -> FastAPI:
     # ---- Jobs (create & steer productions from the browser) ----------
 
     jobs = JobManager()
+    app.state.jobs = jobs
 
     def _same_origin(request: Request) -> None:
         # Starting a job runs an agent with shell access, so refuse anything a
@@ -350,6 +367,39 @@ def create_app() -> FastAPI:
             raise HTTPException(status_code=409, detail=str(e))
         return {"ok": True}
 
+    @app.post("/api/jobs/{job_id}/close")
+    async def api_close(job_id: str, request: Request) -> dict:
+        _same_origin(request)
+        try:
+            job = await asyncio.to_thread(jobs.close, job_id)
+        except KeyError:
+            raise HTTPException(status_code=404, detail="job not found")
+        return {"ok": True, "status": job.get("status")}
+
+    @app.post("/api/jobs/{job_id}/reopen")
+    async def api_reopen(job_id: str, request: Request) -> dict:
+        _same_origin(request)
+        try:
+            job = await asyncio.to_thread(jobs.reopen, job_id)
+        except KeyError:
+            raise HTTPException(status_code=404, detail="job not found")
+        return {"ok": True, "status": job.get("status")}
+
+    @app.post("/api/jobs/{job_id}/delete")
+    async def api_delete_job(job_id: str, request: Request) -> dict:
+        _same_origin(request)
+        body = await request.json() or {}
+        try:
+            report = await asyncio.to_thread(jobs.delete, job_id, bool(body.get("include_exports")),
+                                             bool(body.get("dry_run")))
+        except KeyError:
+            raise HTTPException(status_code=404, detail="job not found")
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+        except RuntimeError as e:
+            raise HTTPException(status_code=409, detail=str(e))
+        return {"ok": True, **report}
+
     @app.post("/api/jobs/{job_id}/cancel")
     async def api_cancel(job_id: str, request: Request) -> dict:
         _same_origin(request)
@@ -376,6 +426,54 @@ def create_app() -> FastAPI:
         except ImportError:
             raise HTTPException(status_code=503, detail="yt-dlp is not installed (requirements-clips.txt).")
 
+    # ---- /api/uploads (full video from the user's computer) --------------
+
+    def _upload_call(fn, *args):
+        try:
+            return fn(*args)
+        except KeyError:
+            raise HTTPException(status_code=404, detail="upload not found")
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+        except RuntimeError as e:
+            raise HTTPException(status_code=409, detail=str(e))
+
+    def _same_origin_raw(request: Request) -> None:
+        # Chunks are raw bytes, not JSON: a custom header forces the CORS
+        # preflight a foreign page can't pass, plus the same Origin check.
+        if request.headers.get("x-owlcut-upload") != "1":
+            raise HTTPException(status_code=403, detail="upload header missing")
+        origin = request.headers.get("origin") or request.headers.get("referer") or ""
+        if not origin or urlparse(origin).netloc != request.headers.get("host", ""):
+            raise HTTPException(status_code=403, detail="cross-origin request refused")
+
+    @app.post("/api/uploads")
+    async def api_upload_start(request: Request) -> dict:
+        _same_origin(request)
+        body = await request.json() or {}
+        return await asyncio.to_thread(_upload_call, uploads.start, body.get("name"), body.get("size"))
+
+    @app.get("/api/uploads/{uid}")
+    async def api_upload_status(uid: str) -> dict:
+        return await asyncio.to_thread(_upload_call, uploads.status, uid)
+
+    @app.put("/api/uploads/{uid}")
+    async def api_upload_chunk(uid: str, offset: int, request: Request) -> dict:
+        _same_origin_raw(request)
+        data = await request.body()  # client sends ≤16 MB per chunk
+        return await asyncio.to_thread(_upload_call, uploads.append, uid, offset, [data])
+
+    @app.post("/api/uploads/{uid}/finish")
+    async def api_upload_finish(uid: str, request: Request) -> dict:
+        _same_origin(request)
+        return await asyncio.to_thread(_upload_call, uploads.finish, uid)
+
+    @app.post("/api/uploads/{uid}/cancel")
+    async def api_upload_cancel(uid: str, request: Request) -> dict:
+        _same_origin(request)
+        await asyncio.to_thread(_upload_call, uploads.cancel, uid)
+        return {"ok": True}
+
     @app.get("/api/clips/{job_id}")
     async def api_clips_job(job_id: str) -> dict:
         try:
@@ -385,7 +483,172 @@ def create_app() -> FastAPI:
         clips = await asyncio.to_thread(clipper.load_clips, job["project_id"])
         keep = ("id", "project_id", "kind", "title", "status", "last_message", "source", "form",
                 "cost_usd", "turns", "renders", "stages", "project_exists", "updated_at")
-        return {"job": {k: job.get(k) for k in keep}, "clips": clips}
+        out = {k: job.get(k) for k in keep}
+        # what the agent is doing right now (last tool call / remark) and when the
+        # user last replied, so the review page can show live render progress
+        log = job.get("log") or []
+        act = next((e for e in reversed(log) if e.get("kind") in ("tool", "assistant")), None)
+        out["activity"] = {"text": str(act.get("text", ""))[:200], "ts": act.get("ts")} if act else None
+        reply = next((e for e in reversed(log) if e.get("kind") == "user" and not e.get("label")), None)
+        out["last_reply_ts"] = reply.get("ts") if reply else None
+        return {"job": out, "clips": clips}
+
+    # ---- /ranking (local ranking videos, no agent) -----------------------
+
+    def _ranking_call(fn, *args):
+        try:
+            return fn(*args)
+        except KeyError:
+            raise HTTPException(status_code=404, detail="ranking not found")
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+        except RuntimeError as e:
+            raise HTTPException(status_code=409, detail=str(e))
+
+    @app.get("/api/rankings/options")
+    async def api_ranking_options() -> dict:
+        return await asyncio.to_thread(ranking.options)
+
+    @app.get("/api/rankings")
+    async def api_rankings() -> list:
+        return await asyncio.to_thread(ranking.list_all)
+
+    @app.post("/api/rankings")
+    async def api_ranking_create(request: Request) -> dict:
+        _same_origin(request)
+        body = await request.json()
+        return await asyncio.to_thread(ranking.create, str((body or {}).get("title", "")))
+
+    @app.get("/api/rankings/{rid}")
+    async def api_ranking_get(rid: str) -> dict:
+        doc = await asyncio.to_thread(_ranking_call, ranking.get, rid)
+        return {**doc, "problems": ranking.problems(doc)}
+
+    @app.post("/api/rankings/{rid}")
+    async def api_ranking_save(rid: str, request: Request) -> dict:
+        _same_origin(request)
+        body = await request.json()
+        if not isinstance(body, dict):
+            raise HTTPException(status_code=400, detail="invalid body")
+        doc = await asyncio.to_thread(_ranking_call, ranking.save, rid, body)
+        return {**doc, "problems": ranking.problems(doc)}
+
+    @app.post("/api/rankings/{rid}/render")
+    async def api_ranking_render(rid: str, request: Request) -> dict:
+        _same_origin(request)
+        return await asyncio.to_thread(_ranking_call, ranking.start_render, rid)
+
+    @app.post("/api/rankings/{rid}/delete")
+    async def api_ranking_delete(rid: str, request: Request) -> dict:
+        _same_origin(request)
+        await asyncio.to_thread(_ranking_call, ranking.delete, rid)
+        return {"ok": True}
+
+    @app.get("/api/rankings/{rid}/video")
+    async def api_ranking_video(rid: str, download: int = 0) -> FileResponse:
+        path = await asyncio.to_thread(_ranking_call, ranking.video_path, rid)
+        if download:
+            return FileResponse(path, media_type="video/mp4", filename=f"{rid}.mp4")
+        return FileResponse(path, media_type="video/mp4")
+
+    # ---- /api/quickclips (local clips, no Claude) ------------------------
+
+    def _quick_call(fn, *args):
+        try:
+            return fn(*args)
+        except KeyError:
+            raise HTTPException(status_code=404, detail="not found")
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+        except RuntimeError as e:
+            raise HTTPException(status_code=409, detail=str(e))
+
+    @app.get("/api/quickclips/options")
+    async def api_quick_options() -> dict:
+        return quickclips.options()
+
+    @app.get("/api/quickclips")
+    async def api_quick_list() -> list:
+        return await asyncio.to_thread(quickclips.list_all)
+
+    @app.post("/api/quickclips")
+    async def api_quick_create(request: Request) -> dict:
+        _same_origin(request)
+        body = await request.json()
+        if not isinstance(body, dict):
+            raise HTTPException(status_code=400, detail="invalid form")
+        return await asyncio.to_thread(_quick_call, quickclips.create, body)
+
+    @app.get("/api/quickclips/{qid}")
+    async def api_quick_get(qid: str) -> dict:
+        return await asyncio.to_thread(_quick_call, quickclips.get, qid)
+
+    @app.post("/api/quickclips/{qid}/cancel")
+    async def api_quick_cancel(qid: str, request: Request) -> dict:
+        _same_origin(request)
+        return await asyncio.to_thread(_quick_call, quickclips.cancel, qid)
+
+    @app.post("/api/quickclips/{qid}/delete")
+    async def api_quick_delete(qid: str, request: Request) -> dict:
+        _same_origin(request)
+        body = await request.json() or {}
+        report = await asyncio.to_thread(_quick_call, quickclips.delete, qid,
+                                         bool(body.get("include_exports")), bool(body.get("dry_run")))
+        return {"ok": True, **(report or {})}
+
+    @app.get("/api/quickclips/{qid}/clip/{cid}")
+    async def api_quick_clip(qid: str, cid: str, download: int = 0) -> FileResponse:
+        path = await asyncio.to_thread(_quick_call, quickclips.clip_path, qid, cid, "video")
+        if download:
+            return FileResponse(path, media_type="video/mp4", filename=f"{qid}-{cid}.mp4")
+        return FileResponse(path, media_type="video/mp4")
+
+    @app.get("/api/quickclips/{qid}/thumb/{cid}")
+    async def api_quick_thumb(qid: str, cid: str) -> FileResponse:
+        path = await asyncio.to_thread(_quick_call, quickclips.clip_path, qid, cid, "thumb")
+        return FileResponse(path, media_type="image/jpeg")
+
+    @app.get("/api/quickclips/{qid}/zip")
+    async def api_quick_zip(qid: str) -> FileResponse:
+        path = await asyncio.to_thread(_quick_call, quickclips.bundle_zip, qid)
+        # the same clips also land in Documents/OwlCutVideos (re-created if that folder was removed)
+        await asyncio.to_thread(quickclips.export, qid)
+        return FileResponse(path, media_type="application/zip", filename=f"{qid}.zip")
+
+    def _folder_info(folder: Path) -> dict:
+        try:
+            shown = "~/" + str(folder.relative_to(Path.home()))
+        except ValueError:
+            shown = str(folder)
+        return {"folder": str(folder), "shown": shown}
+
+    def _reveal(target: Optional[Path]) -> dict:
+        """Open a folder in Finder (the server runs on the user's own Mac)."""
+        if not target or not target.is_dir():
+            raise HTTPException(status_code=404, detail="Not saved to OwlCutVideos yet.")
+        if sys.platform == "darwin" and shutil.which("open"):
+            subprocess.Popen(["open", str(target)])
+            return {"opened": True}
+        return {"opened": False, "folder": str(target)}
+
+    @app.get("/api/quickclips/{qid}/saved")
+    async def api_quick_saved(qid: str) -> dict:
+        folder = await asyncio.to_thread(exports.existing_folder, "clips", f"quick:{qid}")
+        return _folder_info(folder) if folder else {"folder": None}
+
+    @app.post("/api/quickclips/{qid}/save")
+    async def api_quick_save(qid: str, request: Request) -> dict:
+        _same_origin(request)
+        await asyncio.to_thread(_quick_call, quickclips.get, qid)
+        folder = await asyncio.to_thread(quickclips.export, qid)
+        if not folder:
+            raise HTTPException(status_code=500, detail="Couldn't save the clips to OwlCutVideos.")
+        return _folder_info(folder)
+
+    @app.post("/api/quickclips/{qid}/reveal")
+    async def api_quick_reveal(qid: str, request: Request) -> dict:
+        _same_origin(request)
+        return _reveal(await asyncio.to_thread(exports.existing_folder, "clips", f"quick:{qid}"))
 
     # ---- /publish (publishing kit) --------------------------------------
 
@@ -397,6 +660,190 @@ def create_app() -> FastAPI:
 
     def _platforms(job: dict) -> list:
         return list((job.get("form") or {}).get("platforms") or [])
+
+    # ---- Branding (watermark) ------------------------------------------
+
+    @app.get("/api/branding")
+    async def api_branding() -> dict:
+        return {"settings": await asyncio.to_thread(branding.get), "options": branding.options()}
+
+    @app.put("/api/branding")
+    async def api_branding_save(request: Request) -> dict:
+        _same_origin(request)
+        body = await request.json() or {}
+        return {"settings": await asyncio.to_thread(branding.save, body)}
+
+    @app.put("/api/branding/logo")
+    async def api_branding_logo(request: Request) -> dict:
+        _same_origin_raw(request)
+        data = await request.body()
+        try:
+            return {"settings": await asyncio.to_thread(branding.set_logo, data)}
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+
+    @app.post("/api/branding/logo/remove")
+    async def api_branding_logo_remove(request: Request) -> dict:
+        _same_origin(request)
+        return {"settings": await asyncio.to_thread(branding.remove_logo)}
+
+    @app.put("/api/branding/side-logo")
+    async def api_branding_side_logo(request: Request) -> dict:
+        _same_origin_raw(request)
+        data = await request.body()
+        try:
+            return {"settings": await asyncio.to_thread(branding.set_side_logo, data)}
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+
+    @app.post("/api/branding/side-logo/remove")
+    async def api_branding_side_logo_remove(request: Request) -> dict:
+        _same_origin(request)
+        return {"settings": await asyncio.to_thread(branding.remove_side_logo)}
+
+    @app.get("/api/branding/side-logo.png")
+    async def api_branding_side_logo_png(size: int = 256, shape: str = "") -> Response:
+        try:
+            data = await asyncio.to_thread(branding.side_logo_png, size, shape or None)
+        except KeyError:
+            raise HTTPException(status_code=404, detail="no side logo")
+        return Response(content=data, media_type="image/png")
+
+    @app.get("/api/branding/logo.png")
+    async def api_branding_logo_png(size: int = 256, ring: Optional[int] = None) -> Response:
+        try:
+            data = await asyncio.to_thread(branding.round_logo_png, size, None if ring is None else bool(ring))
+        except KeyError:
+            raise HTTPException(status_code=404, detail="no logo")
+        return Response(content=data, media_type="image/png")
+
+    @app.get("/api/branding/samples")
+    async def api_branding_samples() -> list:
+        return await asyncio.to_thread(branding.list_samples)
+
+    @app.get("/api/branding/preview.png")
+    async def api_branding_preview(kind: str = "clips", w: int = 432, draft: str = "",
+                                   sample: str = "demo-wide", t: float = 0.35) -> Response:
+        kind = kind if kind in branding.KINDS else "clips"
+        try:
+            d = json.loads(draft) if draft else None
+        except ValueError:
+            d = None
+        data = await asyncio.to_thread(branding.preview_png, kind, max(160, min(1080, w)),
+                                       d if isinstance(d, dict) else None, sample[:200], t)
+        return Response(content=data, media_type="image/png")
+
+    # ---- Saved in OwlCutVideos (pick a video, post it) -----------------
+
+    def _lib_call(fn, *args):
+        try:
+            return fn(*args)
+        except KeyError:
+            raise HTTPException(status_code=404, detail="Not found — was it moved or deleted in Finder?")
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+
+    @app.get("/api/saved")
+    async def api_saved() -> dict:
+        items = await asyncio.to_thread(library.list_saved)
+        return {"root": _folder_info(exports.root())["shown"], "productions": items}
+
+    @app.get("/api/saved/video")
+    async def api_saved_video(path: str, download: int = 0) -> FileResponse:
+        p = await asyncio.to_thread(_lib_call, library.resolve, path)
+        if download:
+            return FileResponse(p, media_type="video/mp4", filename=p.name)
+        return FileResponse(p, media_type="video/mp4")
+
+    @app.get("/api/saved/thumb")
+    async def api_saved_thumb(path: str) -> FileResponse:
+        p = await asyncio.to_thread(_lib_call, library.thumb, path)
+        return FileResponse(p, media_type="image/jpeg", headers={"Cache-Control": "max-age=86400"})
+
+    @app.get("/api/saved/post")
+    async def api_saved_post(path: str) -> dict:
+        return await asyncio.to_thread(_lib_call, library.post_state, path)
+
+    @app.put("/api/saved/post")
+    async def api_saved_post_save(request: Request) -> dict:
+        _same_origin(request)
+        body = await request.json()
+        if not isinstance(body, dict):
+            raise HTTPException(status_code=400, detail="Invalid body.")
+        return await asyncio.to_thread(_lib_call, library.save_post, body.get("path"), body.get("platform"), body)
+
+    @app.post("/api/saved/reveal")
+    async def api_saved_reveal(request: Request) -> dict:
+        _same_origin(request)
+        body = await request.json()
+        return {"opened": await asyncio.to_thread(_lib_call, library.reveal, (body or {}).get("path"))}
+
+    # ---- Social accounts: TikTok ----------------------------------------
+
+    def _tk_call(fn, *args):
+        try:
+            return fn(*args)
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+        except KeyError:
+            raise HTTPException(status_code=404, detail="Not found — was it moved or deleted in Finder?")
+        except social_tiktok.TikTokError as e:
+            raise HTTPException(status_code=502, detail=f"TikTok: {e}")
+        except OSError as e:
+            raise HTTPException(status_code=502, detail=f"Couldn't reach TikTok: {e}")
+
+    @app.get("/api/social/tiktok")
+    async def api_tiktok() -> dict:
+        return await asyncio.to_thread(social_tiktok.status)
+
+    @app.put("/api/social/tiktok/keys")
+    async def api_tiktok_keys(request: Request) -> dict:
+        _same_origin(request)
+        body = await request.json()
+        return await asyncio.to_thread(_tk_call, social_tiktok.save_keys, body if isinstance(body, dict) else {})
+
+    @app.post("/api/social/tiktok/forget")
+    async def api_tiktok_forget(request: Request) -> dict:
+        _same_origin(request)
+        return await asyncio.to_thread(social_tiktok.forget_keys)
+
+    @app.post("/api/social/tiktok/disconnect")
+    async def api_tiktok_disconnect(request: Request) -> dict:
+        _same_origin(request)
+        await asyncio.to_thread(social_tiktok.disconnect)
+        return await asyncio.to_thread(social_tiktok.status)
+
+    @app.get("/api/social/tiktok/connect")
+    async def api_tiktok_connect() -> Response:
+        try:
+            return RedirectResponse(await asyncio.to_thread(social_tiktok.auth_url), status_code=302)
+        except ValueError as e:
+            return RedirectResponse("/settings?tiktok_error=" + quote(str(e)) + "#social", status_code=302)
+
+    @app.get("/api/social/tiktok/callback")
+    async def api_tiktok_callback(code: str = "", state: str = "", error: str = "", error_description: str = "") -> Response:
+        try:
+            await asyncio.to_thread(social_tiktok.finish_login, code, state, error_description or error)
+            return RedirectResponse("/settings?tiktok=connected#social", status_code=302)
+        except (social_tiktok.TikTokError, OSError, KeyError) as e:
+            return RedirectResponse("/settings?tiktok_error=" + quote(str(e)[:300]) + "#social", status_code=302)
+
+    @app.post("/api/saved/tiktok")
+    async def api_saved_to_tiktok(request: Request) -> dict:
+        """Send a saved video to the connected TikTok account's inbox (draft)."""
+        _same_origin(request)
+        body = await request.json()
+        rel = (body or {}).get("path")
+        path = await asyncio.to_thread(_lib_call, library.resolve, rel)
+        res = await asyncio.to_thread(_tk_call, social_tiktok.upload_to_inbox, path)
+        await asyncio.to_thread(library.mark_sent, rel, "tiktok", res["publish_id"])
+        return res
+
+    @app.get("/api/social/tiktok/publish/{publish_id}")
+    async def api_tiktok_publish_status(publish_id: str) -> dict:
+        if not re.fullmatch(r"[\w.~-]{1,128}", publish_id):
+            raise HTTPException(status_code=400, detail="Invalid id.")
+        return await asyncio.to_thread(_tk_call, social_tiktok.publish_status, publish_id)
 
     @app.get("/api/publish")
     async def api_publish_list() -> list:
@@ -454,6 +901,33 @@ def create_app() -> FastAPI:
         return Response(content=data, media_type="application/zip",
                         headers={"Content-Disposition": f'attachment; filename="{name}"'})
 
+    def _save_kit(job: dict) -> dict:
+        folder = clipper.save_kit(job["project_id"], _platforms(job), job.get("title") or "", job.get("created_at"))
+        return _folder_info(folder)
+
+    @app.post("/api/publish/{job_id}/kit/save")
+    async def api_publish_save(job_id: str, request: Request) -> dict:
+        _same_origin(request)
+        try:
+            job = await asyncio.to_thread(_clips_job, job_id)
+        except KeyError:
+            raise HTTPException(status_code=404, detail="job not found")
+        try:
+            return await asyncio.to_thread(_save_kit, job)
+        except OSError as exc:
+            raise HTTPException(status_code=500, detail=f"Couldn't save the kit: {exc}")
+
+    @app.post("/api/publish/{job_id}/kit/reveal")
+    async def api_publish_reveal(job_id: str, request: Request) -> dict:
+        """Open the saved kit in Finder (the server runs on the user's own Mac)."""
+        _same_origin(request)
+        try:
+            job = await asyncio.to_thread(_clips_job, job_id)
+        except KeyError:
+            raise HTTPException(status_code=404, detail="job not found")
+        folder = exports.existing_folder("clips", f"project:{job['project_id']}")
+        return _reveal(folder / clipper.KIT_DIR if folder else None)
+
     # ---- UI ------------------------------------------------------------
 
     @app.get("/publish")
@@ -464,9 +938,25 @@ def create_app() -> FastAPI:
     async def publish_job_page(job_id: str) -> HTMLResponse:
         return _ui_html("publish.html")
 
+    @app.get("/ranking")
+    async def ranking_page() -> HTMLResponse:
+        return _ui_html("ranking.html")
+
+    @app.get("/ranking/{rid}")
+    async def ranking_edit_page(rid: str) -> HTMLResponse:
+        return _ui_html("ranking.html")
+
+    @app.get("/settings")
+    async def settings_page() -> HTMLResponse:
+        return _ui_html("settings.html")
+
     @app.get("/clips")
     async def clips_page() -> HTMLResponse:
         return _ui_html("clips.html")
+
+    @app.get("/clips/quick/{qid}")
+    async def quick_clips_page(qid: str) -> HTMLResponse:
+        return _ui_html("quick.html")
 
     @app.get("/clips/{job_id}")
     async def clips_review_page(job_id: str) -> HTMLResponse:
@@ -505,7 +995,7 @@ def create_app() -> FastAPI:
     async def ui_no_cache(request, call_next):
         response = await call_next(request)
         path = request.url.path
-        if path in ("/", "/new", "/clips", "/publish") or path.startswith(("/ui", "/p/", "/job/", "/api/jobs", "/clips/", "/api/clips/", "/publish/", "/api/publish")):
+        if path in ("/", "/new", "/clips", "/publish", "/ranking", "/settings", "/api/saved") or path.startswith(("/api/branding", "/ui", "/p/", "/job/", "/api/jobs", "/clips/", "/api/clips/", "/api/uploads", "/api/quickclips", "/publish/", "/api/publish", "/api/saved/post", "/api/social", "/ranking/")) or (path.startswith("/api/rankings") and not path.endswith("/video")):
             response.headers["Cache-Control"] = "no-cache"
         return response
 

@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OwlCut — Settings</title>
+<meta name="description" content="Watermark: your round logo and @handle on every video.">
+<script>(function(){var q=new URLSearchParams(location.search).get("theme"),t="dark";try{t=q||localStorage.getItem("backlot.theme")||"dark"}catch(e){t=q||"dark"}document.documentElement.dataset.theme=t==="light"?"light":"dark"})()</script>
+<link rel="stylesheet" href="/ui/board.css">
+<link rel="stylesheet" href="/ui/create.css">
+<link rel="stylesheet" href="/ui/studio.css">
+<link rel="stylesheet" href="/ui/clips.css">
+<link rel="stylesheet" href="/ui/settings.css">
+<script type="module" src="/ui/shell.js"></script>
+</head>
+<body>
+<main class="wrap" id="conteudo">
+  <header class="slate">
+    <div>
+      <h1>Settings</h1>
+      <p class="page-sub">Your watermark — a round logo with your @ at the top, plus an optional second logo on the side — burned into the videos OwlCut makes.</p>
+    </div>
+  </header>
+
+  <div class="create-grid">
+   <div class="settings-col">
+    <form class="form-card" id="form" novalidate>
+      <section class="form-section">
+        <h2>Round logo · top</h2>
+        <div class="logo-row">
+          <label class="logo-drop" id="logoDrop" for="logoFile">
+            <input id="logoFile" type="file" accept="image/png,image/jpeg,image/webp" class="sr-only">
+            <img id="logoImg" alt="Your logo, cropped to a circle" hidden>
+            <span class="logo-empty" id="logoEmpty">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 16V4m0 0-4.5 4.5M12 4l4.5 4.5"/><path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg>
+              <b>Upload logo</b>
+            </span>
+          </label>
+          <div class="logo-side">
+            <p class="help">PNG, JPG or WebP. It's cropped to a circle from the centre — a square image works best. Transparent areas become white.</p>
+            <label class="check"><input type="checkbox" id="ring"> White ring around the logo</label>
+            <div class="logo-actions">
+              <label class="btn small" for="logoFile" id="logoPick">Choose image</label>
+              <button class="btn small danger" type="button" id="logoRemove" hidden>Remove</button>
+            </div>
+            <p class="form-error" id="logoError" role="alert"></p>
+          </div>
+        </div>
+      </section>
+
+      <section class="form-section">
+        <h2>Your page</h2>
+        <div class="fields">
+          <div class="field full">
+            <label for="handle">@ of your page</label>
+            <input id="handle" type="text" placeholder="@yourpage" maxlength="31" autocomplete="off" spellcheck="false">
+            <div class="help">Shown next to the logo. Leave empty for the logo only.</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="form-section">
+        <h2>Look</h2>
+        <div class="fields">
+          <fieldset class="field full area-field">
+            <legend>Moves over</legend>
+            <div class="seg" id="areaSeg"></div>
+          </fieldset>
+          <div class="field full pos-pad">
+            <span class="pos-title">Position</span>
+            <label class="pos-row" for="posX"><span>Left</span>
+              <input id="posX" type="range" min="0" max="100" step="1" aria-label="Position: horizontal">
+              <span>Right</span><b class="mono" id="posXVal"></b></label>
+            <label class="pos-row" for="posY"><span>Top</span>
+              <input id="posY" type="range" min="0" max="100" step="1" aria-label="Position: vertical">
+              <span>Bottom</span><b class="mono" id="posYVal"></b></label>
+            <div class="pos-presets" data-for="pos">
+              <button type="button" class="btn small" data-x="0" data-y="0">↖</button>
+              <button type="button" class="btn small" data-x="50" data-y="0">↑</button>
+              <button type="button" class="btn small" data-x="100" data-y="0">↗</button>
+              <button type="button" class="btn small" data-x="0" data-y="50">←</button>
+              <button type="button" class="btn small" data-x="100" data-y="50">→</button>
+              <button type="button" class="btn small" data-x="0" data-y="100">↙</button>
+              <button type="button" class="btn small" data-x="100" data-y="100">↘</button>
+            </div>
+          </div>
+          <p class="help full pos-help" id="posHelp"></p>
+          <fieldset class="field">
+            <legend>Size</legend>
+            <div class="seg" id="sizeSeg"></div>
+          </fieldset>
+          <div class="field">
+            <label for="opacity">Opacity <span class="mono" id="opacityVal"></span></label>
+            <input id="opacity" type="range" min="20" max="100" step="5">
+          </div>
+        </div>
+      </section>
+
+      <section class="form-section">
+        <h2>Side watermark</h2>
+        <div class="logo-row">
+          <label class="logo-drop side-drop" id="sideDrop" for="sideFile">
+            <input id="sideFile" type="file" accept="image/png,image/jpeg,image/webp" class="sr-only">
+            <img id="sideImg" alt="Your side watermark" hidden>
+            <span class="logo-empty" id="sideEmpty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 16V4m0 0-4.5 4.5M12 4l4.5 4.5"/><path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg><b>Upload image</b></span>
+          </label>
+          <div class="logo-side">
+            <p class="help">A second logo over the video, on the side. A PNG with a transparent background looks best — it keeps its own shape (or make it round below).</p>
+            <label class="check"><input type="checkbox" id="sideEnabled"> Show the side watermark</label>
+            <div class="logo-actions">
+              <label class="btn small" for="sideFile" id="sidePick">Choose image</label>
+              <button class="btn small danger" type="button" id="sideRemove" hidden>Remove</button>
+            </div>
+            <p class="form-error" id="sideError" role="alert"></p>
+          </div>
+        </div>
+        <div class="fields side-fields" id="sideFields">
+          <div class="field full pos-pad">
+            <span class="pos-title">Position</span>
+            <label class="pos-row" for="sideX"><span>Left</span>
+              <input id="sideX" type="range" min="0" max="100" step="1" aria-label="Position: horizontal">
+              <span>Right</span><b class="mono" id="sideXVal"></b></label>
+            <label class="pos-row" for="sideY"><span>Top</span>
+              <input id="sideY" type="range" min="0" max="100" step="1" aria-label="Position: vertical">
+              <span>Bottom</span><b class="mono" id="sideYVal"></b></label>
+            <div class="pos-presets" data-for="side">
+              <button type="button" class="btn small" data-x="0" data-y="0">↖</button>
+              <button type="button" class="btn small" data-x="50" data-y="0">↑</button>
+              <button type="button" class="btn small" data-x="100" data-y="0">↗</button>
+              <button type="button" class="btn small" data-x="0" data-y="50">←</button>
+              <button type="button" class="btn small" data-x="100" data-y="50">→</button>
+              <button type="button" class="btn small" data-x="0" data-y="100">↙</button>
+              <button type="button" class="btn small" data-x="100" data-y="100">↘</button>
+            </div>
+          </div>
+          <fieldset class="field">
+            <legend>Shape</legend>
+            <div class="seg" id="sideShapeSeg"></div>
+          </fieldset>
+          <fieldset class="field">
+            <legend>Size</legend>
+            <div class="seg" id="sideSizeSeg"></div>
+          </fieldset>
+          <div class="field full">
+            <label for="sideOpacity">Opacity <span class="mono" id="sideOpacityVal"></span></label>
+            <input id="sideOpacity" type="range" min="10" max="100" step="5">
+            <div class="help" id="sideHelp">Watermarks usually sit at 25–50%. “Round” crops the centre, so it suits square images. On TikTok/Reels the like and share buttons sit on the right, from the middle down.</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="form-section">
+        <h2>Clip transitions</h2>
+        <div class="fade-row">
+          <span class="fade-demo" aria-hidden="true"><span></span></span>
+          <div class="logo-side">
+            <label class="check"><input type="checkbox" id="fadeEnabled"> Fade in from black at the start, fade out to black at the end</label>
+            <fieldset class="field" id="fadeField">
+              <legend>Speed</legend>
+              <div class="seg" id="fadeSeg"></div>
+            </fieldset>
+            <p class="help">For clips: Local clips get it while rendering, AI-agent clips in the copy saved to <b>Documents/OwlCutVideos</b>. The sound fades with the picture, and captions and watermark fade too. Rankings already fade between entries.</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="form-section">
+        <h2>Watermark applies to</h2>
+        <div class="apply-list" id="applyList"></div>
+        <p class="help apply-note">Local clips and rankings get it while rendering. Videos made by the AI agent get it in the copy saved to <b>Documents/OwlCutVideos</b>. Applies to new renders — videos already made aren't changed.</p>
+      </section>
+
+      <div class="form-actions save-bar">
+        <button class="btn primary" type="submit" id="saveBtn" disabled>Save settings</button>
+        <button class="btn" type="button" id="resetBtn" hidden>Discard changes</button>
+        <span class="save-state" id="saveState" aria-live="polite"></span>
+      </div>
+    </form>
+
+    <section class="form-card social-card" id="social" aria-labelledby="socialTitle">
+      <div class="form-section">
+        <h2 id="socialTitle">Social accounts · TikTok</h2>
+        <div class="tk-account" id="tkAccount" hidden>
+          <img id="tkAvatar" alt="" width="44" height="44">
+          <div><b id="tkName"></b><span class="help" id="tkSince"></span></div>
+          <button class="btn small danger" type="button" id="tkDisconnect">Disconnect</button>
+        </div>
+        <p class="help tk-intro" id="tkIntro">Connect your TikTok to send a video straight to your TikTok inbox from <b>Publish</b>: TikTok notifies your phone, you open the draft, paste the caption and post. It needs an app of your own on <a href="https://developers.tiktok.com/apps/" target="_blank" rel="noopener">developers.tiktok.com</a> — its keys stay only on this Mac.</p>
+        <div class="fields">
+          <div class="field full">
+            <label for="tkKey">Client key</label>
+            <input id="tkKey" type="text" autocomplete="off" spellcheck="false" placeholder="aw1b2c3d4e5f…">
+          </div>
+          <div class="field full">
+            <label for="tkSecret">Client secret</label>
+            <input id="tkSecret" type="password" autocomplete="new-password" spellcheck="false" placeholder="Paste the Client secret">
+            <div class="help" id="tkSecretHelp"></div>
+          </div>
+          <div class="field full">
+            <label for="tkRedirect">Redirect URI <span class="help-inline">— register exactly this in your TikTok app (Login Kit)</span></label>
+            <div class="copy-row"><input id="tkRedirect" type="text" spellcheck="false"><button class="btn small" type="button" id="tkCopy">Copy</button></div>
+          </div>
+        </div>
+        <div class="form-actions tk-actions">
+          <button class="btn" type="button" id="tkSave">Save keys</button>
+          <a class="btn primary" id="tkConnect" href="/api/social/tiktok/connect" aria-disabled="true">Connect TikTok</a>
+          <button class="btn small" type="button" id="tkForget" hidden>Remove keys</button>
+          <span class="save-state" id="tkState" aria-live="polite"></span>
+        </div>
+        <details class="more tk-steps">
+          <summary>How to create the TikTok app (5 steps)</summary>
+          <ol>
+            <li>On <b>developers.tiktok.com</b>, log in with your TikTok and go to <b>Manage apps → Connect an app</b>.</li>
+            <li>Fill in name, icon, description, category and the <b>website, Privacy Policy and Terms</b> URLs.</li>
+            <li>Add the products <b>Login Kit</b> (platform: <b>Desktop</b>) and <b>Content Posting API</b>.</li>
+            <li>Scopes: <code>user.info.basic</code> and <code>video.upload</code>. In Login Kit, add the Redirect URI shown above.</li>
+            <li>Copy the <b>Client key</b> and <b>Client secret</b> here, <b>Save keys</b>, then <b>Connect TikTok</b>. Until TikTok reviews the app, only accounts added as testers (in the app's Sandbox) can connect.</li>
+          </ol>
+        </details>
+      </div>
+    </section>
+   </div>
+
+    <aside class="side-card preview-card">
+      <h3>Preview</h3>
+      <div class="seg compact" id="kindSeg" role="radiogroup" aria-label="Preview for"></div>
+      <div class="field sample-field">
+        <label for="sample">Preview on</label>
+        <select id="sample"></select>
+      </div>
+      <button class="btn small" type="button" id="nextFrame">Another frame</button>
+      <div class="preview-frame" id="previewFrame"><img id="preview" alt="Watermark preview on a sample frame"></div>
+      <p class="help" id="previewNote"></p>
+      <p class="help preview-tip">On wide videos the watermark sits on the picture itself, not on the blurred band — so cropping the video can't remove it.</p>
+    </aside>
+  </div>
+</main>
+<script type="module" src="/ui/settings.js"></script>
+<script type="module" src="/ui/settings-social.js"></script>
+</body>
+</html>

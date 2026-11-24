@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>OwlCut — Clips</title>
-<meta name="description" content="Turn a YouTube video into captioned vertical clips for social media.">
+<meta name="description" content="Turn a YouTube video or a local file into captioned vertical clips for social media.">
 <script>(function(){var q=new URLSearchParams(location.search).get("theme"),t="dark";try{t=q||localStorage.getItem("backlot.theme")||"dark"}catch(e){t=q||"dark"}document.documentElement.dataset.theme=t==="light"?"light":"dark"})()</script>
 <link rel="stylesheet" href="/ui/board.css">
 <link rel="stylesheet" href="/ui/create.css">
@@ -16,10 +16,21 @@
 <main class="wrap" id="conteudo">
   <header class="slate">
     <div>
-      <h1>Clips from a YouTube video</h1>
-      <p class="page-sub">Paste the link. The agent downloads, transcribes and finds the moments that stand on their own; you review and trim them before rendering.</p>
+      <h1>Clips from a long video</h1>
+      <p class="page-sub">Paste a YouTube link or upload a video from your computer. The agent downloads, transcribes and finds the moments that stand on their own; you review and trim them before rendering.</p>
     </div>
   </header>
+
+  <div class="engine-pick" role="radiogroup" aria-label="How to make the clips">
+    <label class="engine-card">
+      <input type="radio" name="engine" value="agent" checked>
+      <span class="engine-txt"><b>AI agent</b><span>Claude watches the whole video and picks the moments that stand on their own. You review before rendering. Uses your Claude plan.</span></span>
+    </label>
+    <label class="engine-card">
+      <input type="radio" name="engine" value="local">
+      <span class="engine-txt"><b>Local</b><span>Your Mac transcribes, cuts on whole sentences and renders with captions. Faster, zero plan usage — picks by pace and energy, not by meaning.</span></span>
+    </label>
+  </div>
 
   <div id="claudeMissing" class="banner" style="display:none">
     Claude Code CLI was not found on this machine. Set <code>OPENMONTAGE_CLAUDE_BIN</code> to the binary path and restart OwlCut.
@@ -29,6 +40,37 @@
     <form class="form-card" id="form" novalidate>
       <section class="form-section">
         <h2><span class="step">1</span>The video</h2>
+        <div class="seg source-seg" id="sourceSeg" role="radiogroup" aria-label="Video source">
+          <label><input type="radio" name="source" value="youtube" checked>YouTube link</label>
+          <label><input type="radio" name="source" value="file">File from my computer</label>
+        </div>
+
+        <div id="filePane" hidden>
+          <label class="dropzone" id="dropzone" for="file">
+            <input id="file" type="file" accept="video/*,.mkv,.mts,.m2ts" class="sr-only">
+            <span class="dz-ic" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4m0 0-4.5 4.5M12 4l4.5 4.5"/><path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg>
+            </span>
+            <b>Drop the full video here</b>
+            <span>or click to pick a file — any size (MP4, MOV, MKV, WebM…)</span>
+          </label>
+          <div class="upload" id="upload" hidden>
+            <div class="probe-thumb"><video id="uThumb" muted playsinline preload="metadata" aria-hidden="true"></video><span class="probe-dur" id="uDur"></span></div>
+            <div class="probe-body">
+              <b id="uName"></b>
+              <span class="probe-ch" id="uMeta"></span>
+              <div class="bar" role="progressbar" aria-label="Upload progress" aria-valuemin="0" aria-valuemax="100" id="uBarWrap"><span id="uBar"></span></div>
+              <div class="upload-row">
+                <span class="upload-txt" id="uTxt"></span>
+                <button class="btn small" type="button" id="uCancel">Remove</button>
+              </div>
+            </div>
+          </div>
+          <div class="help">The file is copied into OwlCut in pieces, so even multi-GB videos work; keep this tab open until it reaches 100%. You can fill in the rest of the form meanwhile.</div>
+          <div class="form-error" id="uploadError" role="alert"></div>
+        </div>
+
+        <div id="youtubePane">
         <div class="url-row">
           <label class="sr-only" for="url">YouTube link</label>
           <div class="url-input">
@@ -48,6 +90,7 @@
             <span class="probe-ch" id="pChannel"></span>
             <div class="probe-tags" id="pTags"></div>
           </div>
+        </div>
         </div>
 
         <div class="fields focus-fields" id="focusFields" hidden>
@@ -69,7 +112,12 @@
       <section class="form-section">
         <h2><span class="step">2</span>The clips</h2>
         <div class="fields">
-          <fieldset class="field full">
+          <fieldset class="field full local-only" hidden>
+            <legend>What to cut</legend>
+            <div class="seg" id="modeSeg"></div>
+            <div class="help" id="modeHelp"></div>
+          </fieldset>
+          <fieldset class="field full" id="countField">
             <legend>How many clips</legend>
             <div class="seg" id="countSeg"></div>
           </fieldset>
@@ -77,7 +125,7 @@
             <legend>Length of each clip</legend>
             <div class="seg" id="lengthSeg"></div>
           </fieldset>
-          <fieldset class="field full">
+          <fieldset class="field full agent-only">
             <legend>Where you'll post</legend>
             <div class="seg" id="platformSeg"></div>
             <div class="help">TikTok, Reels and Shorts share the same 9:16 vertical; feed posts come out in 4:5.</div>
@@ -85,7 +133,25 @@
         </div>
       </section>
 
-      <section class="form-section">
+      <section class="form-section local-only" hidden>
+        <h2><span class="step">3</span>Look</h2>
+        <div class="fields">
+          <fieldset class="field full">
+            <legend>Framing (9:16)</legend>
+            <div class="seg" id="framingSeg"></div>
+          </fieldset>
+          <fieldset class="field full">
+            <legend>Captions</legend>
+            <div class="seg" id="qcapSeg"></div>
+          </fieldset>
+          <fieldset class="field full">
+            <legend>Highlight colour</legend>
+            <div class="swatches" id="qaccentSeg"></div>
+          </fieldset>
+        </div>
+      </section>
+
+      <section class="form-section agent-only">
         <h2><span class="step">3</span>Look</h2>
         <p class="section-help">Previews rendered by the same engine that builds your clips.</p>
         <div class="fields">
@@ -112,7 +178,7 @@
         </div>
       </section>
 
-      <section class="form-section">
+      <section class="form-section agent-only">
         <h2><span class="step">4</span>Control</h2>
         <div class="fields">
           <div class="field">
@@ -138,14 +204,21 @@
 
     <aside class="side-card">
       <h3>How it works</h3>
-      <ol class="steps-list">
-        <li><b>Downloads and transcribes</b> the video, timing every word.</li>
+      <ol class="steps-list local-only" hidden>
+        <li><b>Transcribes on your Mac</b> (faster-whisper), timing every word.</li>
+        <li><b>Cuts on whole sentences</b> — the best moments by pace, energy and few pauses, or the whole video in parts.</li>
+        <li><b>Renders 9:16 clips</b> with word-by-word captions burned in.</li>
+        <li><b>You download</b> the ones you like — no Claude usage at all.</li>
+      </ol>
+      <ol class="steps-list agent-only">
+        <li><b>Downloads (or receives) and transcribes</b> the video, timing every word.</li>
         <li><b>Ranks the moments</b> by hook, standalone sense, value and energy.</li>
         <li><b>You review</b>: watch each moment, trim start and end, pick which ones go in.</li>
         <li><b>Renders</b> vertical clips that follow the face, with word-by-word captions.</li>
       </ol>
       <h3 style="margin-top:22px">Summary</h3>
       <div class="summary-list" id="summary"></div>
+      <div class="agent-only"><p class="agent-model" id="agentModel" hidden></p></div>
       <p class="rights">Use your own videos, or ones you have permission to use. Reposting other people's content can break copyright law and platform rules.</p>
     </aside>
   </div>

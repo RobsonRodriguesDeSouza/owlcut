@@ -196,3 +196,29 @@ def test_bundle_slug_keeps_accented_letters(projects_root):
     (proj / "renders/clips/c01.mp4").write_bytes(b"v")
     names = zipfile.ZipFile(io.BytesIO(clipper.build_bundle("p1", ["tiktok"]))).namelist()
     assert "TikTok/01-ceu-e-azul.mp4" in names
+
+
+def test_save_kit_writes_the_kit_into_owlcutvideos(projects_root, tmp_path, monkeypatch):
+    import os
+    from backlot import exports
+
+    out = tmp_path / "OwlCutVideos"
+    monkeypatch.setenv("OWLCUT_OUTPUT_DIR", str(out))
+    proj = _published_project(projects_root)
+    folder = clipper.save_kit("p1", ["tiktok", "shorts"], "Clips — Demo", 1_700_000_000)
+    assert folder.parent.parent == out / "Clips" and folder.name == "Publishing kit"
+    assert folder.parent.name.startswith("Demo_")
+    vid = folder / "TikTok/01-violet-sky.mp4"
+    assert vid.read_bytes() == b"video"
+    assert os.stat(vid).st_ino != os.stat(proj / "renders/clips/c01_9x16.mp4").st_ino   # own file (clone)
+    assert (folder / "TikTok/01-violet-sky.txt").read_text().startswith("Draft")
+    assert (folder / "YouTube Shorts/01-violet-sky.txt").read_text().startswith("TITLE: Violet sky")
+    assert (folder / "CHECKLIST.txt").is_file()
+    # same production folder as the auto export, and re-saving refreshes text / drops stale files
+    assert exports.existing_folder("clips", "project:p1") == folder.parent
+    clipper.save_edit("p1", "c01", "tiktok", {"caption": "Mine"})
+    (folder / "TikTok/stale.txt").write_text("x")
+    again = clipper.save_kit("p1", ["tiktok"], "Clips — Demo", 1_700_000_000)
+    assert again == folder
+    assert (folder / "TikTok/01-violet-sky.txt").read_text().startswith("Mine")
+    assert not (folder / "TikTok/stale.txt").exists() and not (folder / "YouTube Shorts").exists()
