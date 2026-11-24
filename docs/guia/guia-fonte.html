@@ -1,0 +1,341 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>OwlCut — Guia de uso</title>
+<style>
+  @page { size: A4; margin: 22mm 20mm 20mm 20mm; }
+  :root { --ink:#1f1e1c; --muted:#6b6862; --line:#e4e1da; --soft:#f5f4f1; --accent:#c96442; }
+  * { box-sizing: border-box; }
+  body { font-family: -apple-system, "Helvetica Neue", Helvetica, Arial, sans-serif; color: var(--ink);
+         font-size: 10.6pt; line-height: 1.55; margin: 0; background: #fff; }
+  h1, h2, h3 { font-family: "Charter", "Iowan Old Style", Georgia, serif; font-weight: 500; line-height: 1.2; }
+  h1 { font-size: 25pt; margin: 0 0 8px; }
+  h2 { font-size: 16pt; margin: 26px 0 8px; break-after: avoid; }
+  h3 { font-size: 12.5pt; margin: 18px 0 6px; break-after: avoid; }
+  p { margin: 6px 0; }
+  ul, ol { margin: 6px 0; padding-left: 22px; }
+  li { margin: 3px 0; }
+  .meta { display: flex; gap: 8px; align-items: center; margin-bottom: 18px; }
+  .chip { background: var(--soft); border: 1px solid var(--line); border-radius: 4px; padding: 1px 8px; font-size: 8.5pt; color: var(--muted); }
+  code { font-family: "SF Mono", Menlo, monospace; font-size: 9pt; background: var(--soft); border: 1px solid var(--line);
+         border-radius: 3px; padding: 0 4px; }
+  pre { font-family: "SF Mono", Menlo, monospace; font-size: 8.8pt; background: var(--soft); border-radius: 5px; padding: 10px 12px;
+        margin: 8px 0; white-space: pre-wrap; break-inside: avoid; }
+  table { border-collapse: collapse; width: 100%; margin: 8px 0; font-size: 9.6pt; break-inside: avoid; }
+  th, td { border: 1px solid var(--line); padding: 5px 8px; text-align: left; vertical-align: top; }
+  th { background: var(--soft); font-weight: 500; color: var(--muted); }
+  .note { border-left: 3px solid var(--accent); background: #fbf3ef; padding: 7px 12px; margin: 10px 0; break-inside: avoid; }
+  .new { display: inline-block; font-size: 7.5pt; font-weight: 600; letter-spacing: .04em; color: var(--accent);
+         border: 1px solid var(--accent); border-radius: 3px; padding: 0 4px; margin-left: 6px; vertical-align: 2px; }
+  b { font-weight: 600; }
+  .tree { font-family: "SF Mono", Menlo, monospace; font-size: 8.8pt; background: var(--soft); border-radius: 5px;
+          padding: 10px 12px; white-space: pre; break-inside: avoid; }
+</style>
+</head>
+<body>
+
+<h1>OwlCut — Guia de uso</h1>
+<div class="meta"><span class="chip">Versão 1.1 · 24/11/2026</span><span class="chip">Clips · Ranking · Publish · Settings</span></div>
+
+<h2>Visão geral</h2>
+<p>O OwlCut transforma vídeos longos em conteúdo vertical para redes sociais. Tudo roda no seu computador, em <code>http://127.0.0.1:4750</code>.</p>
+<ul>
+  <li><b>Clips</b>: um vídeo vira vários cortes curtos legendados. Há dois motores:
+    <ul>
+      <li><b>Local</b> (Quick clips): seu Mac faz tudo, sem gastar o plano do Claude;</li>
+      <li><b>AI agent</b>: o Claude escolhe os melhores momentos e você revisa.</li>
+    </ul>
+  </li>
+  <li><b>Ranking</b>: até 10 trechos de vídeos diferentes viram um único vídeo 9:16, com título fixo e selos #N. Roda 100% local.</li>
+  <li><b>Publish</b>: reúne os vídeos prontos, prepara título, legenda e hashtags por rede e envia ao TikTok como rascunho.</li>
+  <li><b>Settings</b>: marca d'água, transições e a conexão com o TikTok.</li>
+</ul>
+<p>Todo vídeo terminado também é salvo em <b>Documents/OwlCutVideos</b>, numa pasta por produção.</p>
+<p>A interface do app está em inglês. Este guia usa os nomes dos botões como aparecem na tela.</p>
+
+<h2>Antes de começar</h2>
+<p>Com as dependências instaladas, o comando <code>make owlcut</code> sobe o app. Depois é só abrir <code>http://127.0.0.1:4750</code> no navegador.</p>
+<table>
+  <tr><th>Ferramenta</th><th>Para quê</th></tr>
+  <tr><td>Python 3.10+ (3.11+ recomendado)</td><td>servidor do OwlCut e ferramentas</td></tr>
+  <tr><td>Node.js 22+</td><td>render das legendas e intros (HyperFrames)</td></tr>
+  <tr><td>FFmpeg completo (<code>ffmpeg-full</code>)</td><td>cortar, reenquadrar e escrever texto no vídeo</td></tr>
+  <tr><td>Deno</td><td>o yt-dlp precisa dele para ler o YouTube</td></tr>
+  <tr><td>Claude Code CLI, logado</td><td>só o motor AI agent do Clips e o New video</td></tr>
+</table>
+<p>No macOS:</p>
+<pre>brew install python@3.11 node deno ffmpeg-full uv
+make setup          # ambiente Python, Remotion, HyperFrames, .env
+make setup-clips    # yt-dlp, transcrição, rastreio de rosto
+make owlcut         # inicia o app em http://127.0.0.1:4750</pre>
+<p>A barra superior é a mesma em todas as páginas:</p>
+<ul>
+  <li>os menus Library, New video, Clips, Ranking, Publish e Settings;</li>
+  <li>o status das produções;</li>
+  <li>o botão de tema claro/escuro.</li>
+</ul>
+<p>O servidor só escuta em 127.0.0.1, então só o seu computador acessa.</p>
+
+<h2>Clips: de um vídeo longo a vários cortes</h2>
+<p>Abra <b>Clips</b> na barra (<code>/clips</code>). Em <b>1 The video</b>, escolha a origem do vídeo:</p>
+<ul>
+  <li><b>YouTube link</b>: aceita <code>youtube.com/watch?v=…</code>, <code>youtu.be/…</code> e <code>/shorts/…</code>. Canais e playlists não funcionam.</li>
+  <li><b>File from my computer</b>: arraste o arquivo ou clique para escolher. Aceita qualquer tamanho e os formatos MP4, MOV, MKV, WebM e outros.</li>
+</ul>
+<p>Depois, escolha o motor.</p>
+<table>
+  <tr><th></th><th>Local (Quick clips)</th><th>AI agent</th></tr>
+  <tr><td>Quem escolhe</td><td>o Mac, pelo ritmo da fala, pelo volume e por poucas pausas, sempre em frases inteiras</td><td>o Claude, pelo sentido: momentos que se sustentam sozinhos</td></tr>
+  <tr><td>Revisão</td><td>você assiste aos cortes prontos e baixa os que gostar</td><td>você aprova e ajusta antes do render</td></tr>
+  <tr><td>Custo</td><td>zero uso do plano</td><td>usa o seu plano do Claude</td></tr>
+  <tr><td>Velocidade</td><td>mais rápido</td><td>mais lento</td></tr>
+</table>
+
+<h3>Motor Local (Quick clips)<span class="new">NOVO</span></h3>
+<ol>
+  <li>Em <b>What to cut</b>, escolha o tipo de corte:
+    <ul>
+      <li><b>Best moments</b>: os N trechos mais fortes, com N igual a 3, 5, 8 ou 10;</li>
+      <li><b>Whole video</b>: o vídeo inteiro em partes seguidas, até 100 cortes. Um vídeo de 1 hora com cortes de 30–60 s rende cerca de 80 clips.</li>
+    </ul>
+  </li>
+  <li>Em <b>Length of each clip</b>, escolha Short (15–30 s), Medium (30–60 s) ou Long (60–90 s).</li>
+  <li>Em <b>Framing (9:16)</b>, escolha o enquadramento:
+    <ul>
+      <li><b>Automatic</b>: preenche a tela se o vídeo for vertical; se for horizontal, usa fundo desfocado;</li>
+      <li><b>Fill the screen</b>: corta as laterais, ideal para uma pessoa falando;</li>
+      <li><b>Whole frame</b>: mostra o quadro inteiro sobre fundo desfocado.</li>
+    </ul>
+  </li>
+  <li>Em <b>Captions</b>, escolha a legenda (Word-by-word highlight, Clean phrases ou No captions) e a cor de destaque.</li>
+  <li>Clique em <b>Cut the clips locally</b>. A página mostra as etapas: baixando, transcrevendo, escolhendo os cortes e renderizando. Pode fechar a aba, porque o trabalho continua. <b>Cancel</b> para no ponto em que está e mantém os cortes que já ficaram prontos.</li>
+  <li>Em <b>Your clips</b>, cada corte tem player, nota e transcrição. Os botões:
+    <ul>
+      <li><b>Download all (.zip)</b> baixa tudo e também salva os vídeos em Documents/OwlCutVideos;</li>
+      <li><b>Save to OwlCutVideos</b> salva sem baixar;</li>
+      <li><b>Open folder</b> abre a pasta no Finder.</li>
+    </ul>
+  </li>
+</ol>
+
+<h3>Motor AI agent</h3>
+<ol>
+  <li>Opcional: em <b>Range of interest</b>, limite a busca a um trecho. Digite início e fim (<code>12:30</code>) ou clique num capítulo.</li>
+  <li>Em <b>The clips</b>, escolha:
+    <ul>
+      <li>a quantidade;</li>
+      <li>a duração de cada corte;</li>
+      <li>onde vai postar. TikTok, Reels e Shorts usam o mesmo 9:16. Feed gera também 4:5 e YouTube horizontal gera 16:9.</li>
+    </ul>
+  </li>
+  <li>Em <b>Look</b>, escolha o estilo da legenda, a intro, o final e a cor de destaque. As prévias são renders reais.</li>
+  <li>Em <b>Control</b>, defina:
+    <ul>
+      <li>o idioma da legenda;</li>
+      <li>o tipo de revisão. <b>Review the clips before rendering</b> é o recomendado;</li>
+      <li>observações para o agente: o tema, o que evitar e falas obrigatórias.</li>
+    </ul>
+  </li>
+  <li>Clique em <b>Find the best clips</b>. Você vai para a página de revisão enquanto o agente trabalha. A produção continua mesmo com a aba fechada.</li>
+</ol>
+
+<h3>Revisar e aprovar (AI agent)</h3>
+<p>Nada é renderizado sem a sua aprovação. A página <code>/clips/&lt;produção&gt;</code> se atualiza sozinha e tem duas colunas:</p>
+<ul>
+  <li>à esquerda, o vídeo original, com a linha do tempo dos cortes;</li>
+  <li>à direita, um cartão por corte, com a melhor nota primeiro.</li>
+</ul>
+<p>Cada cartão tem:</p>
+<ul>
+  <li>a nota de 0 a 100 e a frase de gancho;</li>
+  <li><b>▶ Play segment</b>, que toca só aquele trecho;</li>
+  <li>os ajustes de Start e End: <b>−0.5</b> e <b>+0.5</b> mudam o tempo, e <b>here</b> usa o ponto atual do player;</li>
+  <li><b>Use</b>, que coloca o corte na seleção ou tira dela.</li>
+</ul>
+<p>Na barra de baixo:</p>
+<ul>
+  <li><b>Approve and render N</b> envia a seleção para o render;</li>
+  <li><b>Ask for something else</b> pede outra coisa em texto livre.</li>
+</ul>
+<p>Os clips prontos aparecem no fim da página. Para refazer, use <b>Re-render N trimmed</b>. Para seguir para o Publish, clique em <b>Approve finished clips</b>.</p>
+
+<h2>Ranking: vários trechos em um só vídeo</h2>
+<p>O Ranking junta de 2 a 10 trechos do YouTube em um vídeo vertical 1080×1920, com o título fixo no topo e um selo #N em cada trecho. Tudo roda no seu computador, sem gastar tokens do Claude. Abra <b>Ranking</b> na barra (<code>/ranking</code>).</p>
+<ol>
+  <li>Digite o título do cabeçalho e clique em <b>Create ranking</b>. O ranking começa com 6 posições, e <b>+ Add slot</b> vai até 10.</li>
+  <li>Em cada posição, cole o link e clique em <b>Load</b>. Use <b>▲ ▼</b> para trocar a ordem e <b>✕</b> para limpar.</li>
+  <li>Clique em <b>Open player</b> e use <b>Mark now</b> no Start e no End, ou digite o tempo (<code>1:02.5</code>). Cada corte tem de 1 a 90 s.</li>
+  <li>Escreva o nome que aparece abaixo do número, com até 48 caracteres.</li>
+  <li>No <b>Header</b>, escolha a ordem e a cor:
+    <ul>
+      <li><b>Countdown</b> termina no #1;</li>
+      <li><b>Top first</b> começa no #1.</li>
+    </ul>
+  </li>
+  <li>Confira a prévia e clique em <b>Render video</b>. O vídeo final aparece com <b>Download MP4</b>. Se mudar algo, use <b>Render again</b>.</li>
+</ol>
+<p>No vídeo final:</p>
+<ul>
+  <li>o vídeo horizontal fica centralizado sobre ele mesmo desfocado;</li>
+  <li>o vídeo vertical ocupa a tela toda;</li>
+  <li>o volume é normalizado entre os trechos;</li>
+  <li>as trocas entre trechos têm fades curtos.</li>
+</ul>
+<p>Tudo salva sozinho enquanto você edita.</p>
+
+<h2>Onde ficam os vídeos: Documents/OwlCutVideos<span class="new">NOVO</span></h2>
+<p>Todo vídeo terminado é copiado para <b>~/Documents/OwlCutVideos</b>, numa pasta por produção com o título e a data:</p>
+<div class="tree">OwlCutVideos/
+├── AIvideos/        vídeos do New video
+├── Clips/           Quick clips e clips do agente
+│   └── Quick clips — &lt;Título&gt;_2026-11-23_17-40/
+│       ├── 01 - &lt;frase do corte&gt;.mp4
+│       └── Publishing kit/   vídeos com marca d'água, textos, capas, CHECKLIST.txt
+└── RankingVideos/   vídeos do Ranking</div>
+<ul>
+  <li>As cópias são clones do APFS: não ocupam espaço extra até você editar o arquivo.</li>
+  <li>Os arquivos aparecem normalmente no Finder.</li>
+  <li>Se você apagar a pasta, o OwlCut a recria no próximo download ou no próximo <b>Save to OwlCutVideos</b>.</li>
+  <li>Para mudar o local, defina <code>OWLCUT_OUTPUT_DIR</code> no <code>.env</code>.</li>
+</ul>
+
+<h2>Publish: preparar e postar</h2>
+<p>Abra <b>Publish</b> na barra. A página tem duas seções.</p>
+
+<h3>Saved in OwlCutVideos<span class="new">NOVO</span></h3>
+<p>Lista todas as produções salvas em OwlCutVideos, a mais recente primeiro, com a capa de cada vídeo. Clique num vídeo para abrir a janela de postagem:</p>
+<ol>
+  <li>Escolha a aba da rede: <b>TikTok</b>, <b>Reels</b> ou <b>Shorts</b>.</li>
+  <li>Edite o título (para Shorts), a legenda e as hashtags. Os contadores mostram o limite de cada rede, e tudo salva sozinho.</li>
+  <li>Os botões:
+    <ul>
+      <li>copiar o texto;</li>
+      <li>baixar o vídeo;</li>
+      <li><b>Show in Finder</b>;</li>
+      <li>marcar <b>Posted</b> quando estiver no ar.</li>
+    </ul>
+  </li>
+  <li>Na aba TikTok, se a conta estiver conectada, aparece o botão <b>Send to TikTok</b> (veja abaixo).</li>
+</ol>
+
+<h3>AI agent clips (kit de postagem)</h3>
+<p>Para produções do motor AI agent, o kit (<code>/publish/&lt;produção&gt;</code>) mostra cada clip com os campos de texto por rede. O agente escreve um primeiro rascunho, e as suas edições nunca são apagadas.</p>
+<p><b>Download kit (.zip)</b> gera uma pasta por rede com o vídeo, o texto e a capa de cada clip, mais um <code>CHECKLIST.txt</code>. O kit também fica salvo em OwlCutVideos, na pasta <code>Publishing kit</code>.</p>
+<table>
+  <tr><th>Rede</th><th>Título</th><th>Legenda (máx.)</th><th>Hashtags (máx.)</th></tr>
+  <tr><td>TikTok</td><td>–</td><td>2.200</td><td>30</td></tr>
+  <tr><td>Instagram Reels</td><td>–</td><td>2.200</td><td>30</td></tr>
+  <tr><td>YouTube Shorts</td><td>até 100</td><td>5.000</td><td>15</td></tr>
+  <tr><td>Feed (Instagram/LinkedIn)</td><td>–</td><td>2.200</td><td>30</td></tr>
+  <tr><td>YouTube (horizontal)</td><td>até 100</td><td>5.000</td><td>15</td></tr>
+</table>
+
+<h3>Send to TikTok<span class="new">NOVO</span></h3>
+<p>Com a conta conectada (veja Settings), <b>Send to TikTok</b> envia o vídeo direto para a caixa de entrada do seu TikTok, como <b>rascunho</b>.</p>
+<ol>
+  <li>O status muda de “Uploading…” para “Sent — check your TikTok inbox”.</li>
+  <li>O TikTok avisa no celular. Abra o rascunho no app.</li>
+  <li>Cole a legenda e as hashtags copiadas do OwlCut e publique. O modo rascunho não aceita texto enviado de fora.</li>
+</ol>
+<div class="note">Instagram e YouTube continuam manuais: copie o texto, baixe o vídeo e poste pelo app. O OwlCut não guarda senha de nenhuma rede.</div>
+
+<h2>Settings: marca d'água e redes sociais<span class="new">NOVO</span></h2>
+<h3>Marca d'água</h3>
+<ul>
+  <li><b>Round logo · top</b>: um logo redondo com o @ da sua página. Use uma imagem quadrada, porque ela é cortada em círculo a partir do centro. Pode ter anel branco.</li>
+  <li><b>Side watermark</b>: um segundo logo na lateral do vídeo. Funciona melhor um PNG com fundo transparente.</li>
+  <li>Para cada logo, ajuste posição, tamanho e opacidade. O normal fica entre 25% e 50%.</li>
+  <li>No TikTok e no Reels, os botões de curtir e compartilhar ficam à direita, do meio para baixo. Evite essa área.</li>
+  <li><b>Clip transitions</b>: fade do preto no início e para o preto no fim. O som, a legenda e a marca d'água acompanham o fade.</li>
+  <li><b>Watermark applies to</b>: escolha onde a marca d'água entra.
+    <ul>
+      <li>Clips locais e rankings recebem a marca no render.</li>
+      <li>Vídeos do agente recebem a marca na cópia salva em OwlCutVideos.</li>
+      <li>A mudança vale só para renders novos.</li>
+    </ul>
+  </li>
+</ul>
+<p>A prévia ao lado mostra o resultado. Clique em <b>Save settings</b> para guardar.</p>
+
+<h3>Social accounts · TikTok</h3>
+<p>Para conectar, você precisa de um app seu no <b>developers.tiktok.com</b>. As chaves ficam só no seu Mac.</p>
+<ol>
+  <li>No developers.tiktok.com, entre com o seu TikTok e vá em <b>Manage apps → Connect an app</b>.</li>
+  <li>Preencha:
+    <ul>
+      <li>nome, ícone, descrição e categoria;</li>
+      <li>as URLs do site, da Privacy Policy e dos Terms. O OwlCut já tem essas páginas publicadas.</li>
+    </ul>
+  </li>
+  <li>Adicione os produtos:
+    <ul>
+      <li><b>Login Kit</b>, com a plataforma Desktop;</li>
+      <li><b>Content Posting API</b>.</li>
+    </ul>
+  </li>
+  <li>Configure:
+    <ul>
+      <li>só os escopos <code>user.info.basic</code> e <code>video.upload</code>;</li>
+      <li>no Login Kit, a <b>Redirect URI</b> que aparece no OwlCut (botão <b>Copy</b>).</li>
+    </ul>
+  </li>
+  <li>Cole o <b>Client key</b> e o <b>Client secret</b> no OwlCut, clique em <b>Save keys</b> e depois em <b>Connect TikTok</b>.</li>
+</ol>
+<div class="note">Até o TikTok aprovar o app na revisão, ele fica em <b>Sandbox</b>. Nesse modo, só as contas em <b>Sandbox settings → Target Users</b> conseguem conectar. Para pedir a aprovação, o TikTok exige um vídeo de demonstração do app funcionando. Nunca mande o Client secret por chat ou e-mail.</div>
+<p>Conectado, o cartão mostra a sua conta. Os botões:</p>
+<ul>
+  <li><b>Disconnect</b> desconecta a conta;</li>
+  <li><b>Remove keys</b> apaga as chaves.</li>
+</ul>
+
+<h2>Uso do Claude e custos</h2>
+<p>Com o Claude Code logado pela assinatura e sem <code>ANTHROPIC_API_KEY</code>, nada é cobrado à parte. O valor em dólar mostrado nas produções é uma estimativa equivalente à API e consome o limite do seu plano.</p>
+<table>
+  <tr><th>Fluxo</th><th>Usa o Claude?</th><th>O que consome</th></tr>
+  <tr><td>Clips · Local</td><td>Não</td><td>só CPU: transcrição, corte e render no Mac</td></tr>
+  <tr><td>Clips · AI agent</td><td>Sim</td><td>escolha e ranking dos momentos e os textos de publicação. O download, a transcrição e o render são locais</td></tr>
+  <tr><td>Ranking</td><td>Não</td><td>CPU e internet para baixar os trechos</td></tr>
+  <tr><td>Publish / TikTok</td><td>Não</td><td>editar, copiar, salvar e enviar ao TikTok é local</td></tr>
+  <tr><td>New video</td><td>Sim, bastante</td><td>o agente lê guias longos e escreve cada cena</td></tr>
+</table>
+<p>Para gastar menos, use o motor Local sempre que der. No AI agent:</p>
+<ul>
+  <li>peça menos cortes;</li>
+  <li>limite o Range of interest;</li>
+  <li>escreva observações objetivas.</li>
+</ul>
+
+<h2>Problemas comuns</h2>
+<table>
+  <tr><th>Sintoma</th><th>Solução</th></tr>
+  <tr><td>“Couldn't read this video” ou o Load fica girando</td><td>Confira se o vídeo é público e se o link está certo. VPN ou firewall podem bloquear o YouTube. Atualize o yt-dlp com <code>make setup-clips</code>.</td></tr>
+  <tr><td>“This video is private or requires a login”</td><td>O OwlCut só funciona com vídeos públicos. Baixe o vídeo e use <b>File from my computer</b>.</td></tr>
+  <tr><td>Ranking: “This video can't be played embedded”</td><td>Digite início e fim à mão. O render funciona igual.</td></tr>
+  <tr><td>Ranking: “Render was interrupted”</td><td>O servidor reiniciou. Clique em Render video de novo; os trechos ficam em cache.</td></tr>
+  <tr><td>As pastas de OwlCutVideos parecem vazias ou sumiram</td><td>Clique em <b>Save to OwlCutVideos</b> (Quick clips) ou baixe o kit de novo. A pasta é recriada.</td></tr>
+  <tr><td>Settings: “TikTok: …” em vermelho ao voltar do login</td><td>Confira se a Redirect URI no app do TikTok é exatamente a do OwlCut e se a sua conta está em Target Users (Sandbox). Depois clique em <b>Reconnect</b>.</td></tr>
+  <tr><td>O rascunho não aparece no TikTok</td><td>Espere alguns minutos e veja as notificações do app. O status no OwlCut mostra se o TikTok recusou o envio.</td></tr>
+  <tr><td>“Claude Code CLI was not found”</td><td>Instale e faça login no Claude Code, defina <code>OPENMONTAGE_CLAUDE_BIN</code> ou use o motor Local.</td></tr>
+  <tr><td>Legendas ou títulos somem; erro de drawtext</td><td>Instale o FFmpeg completo: <code>brew install ffmpeg-full</code>.</td></tr>
+  <tr><td>“The OwlCut server restarted during this turn”</td><td>Abra a produção e envie <code>continue</code>.</td></tr>
+</table>
+
+<h2>Histórico de versões</h2>
+<p>Cada melhoria do OwlCut ganha uma linha aqui, com a mais recente no topo.</p>
+<table>
+  <tr><th>Data</th><th>Versão</th><th>O que mudou</th></tr>
+  <tr><td>24/11/2026</td><td>1.1</td><td>Novidades:
+    <ul>
+      <li>motor Local (Quick clips), com upload de arquivo do computador;</li>
+      <li>Settings, com marca d'água, transições e conexão com o TikTok;</li>
+      <li>cópia automática para Documents/OwlCutVideos;</li>
+      <li>no Publish, a seção “Saved in OwlCutVideos” com textos por rede;</li>
+      <li>Send to TikTok, que manda o vídeo como rascunho.</li>
+    </ul>
+  </td></tr>
+  <tr><td>16/11/2026</td><td>1.0</td><td>Primeira versão do guia: Clips, revisão, Ranking (render local 9:16 com cabeçalho fixo e selos #N) e Publish.</td></tr>
+</table>
+
+</body>
+</html>
